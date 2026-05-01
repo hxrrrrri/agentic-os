@@ -1,3 +1,5 @@
+![AgenticOS architecture and feature overview](public/agenticos-architecture-hero.png)
+
 # AgenticOS
 
 AgenticOS is a local-first AI operating system for agentic workflows. It gives Claude Code, Codex, Ollama, OpenAI, OpenRouter, Gemini, Grok, and custom providers a shared command center with memory, runs, approvals, integrations, routines, and vault-backed artifacts.
