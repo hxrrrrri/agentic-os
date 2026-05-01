@@ -13,7 +13,7 @@ export function Badge({ className, tone: selectedTone = "gray", ...props }: HTML
   return (
     <span
       className={cn(
-        "inline-flex items-center border px-2 py-1 text-[0.65rem] font-semibold uppercase tracking-[0.12em]",
+        "inline-flex items-center rounded-[2px] border px-2 py-1 text-[0.55rem] font-semibold uppercase tracking-[0.14em]",
         tone[selectedTone],
         className,
       )}

@@ -2,7 +2,7 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState, useTransition } from "react";
-import { Play, RotateCcw } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SkillGrid } from "@/components/dashboard/skill-grid";
 import type { Skill } from "@/types";
@@ -27,35 +27,46 @@ export function PromptConsole({ skills }: { skills: Skill[] }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt, skillId: selectedSkill?.id, dryRun: true }),
       });
-      const data = (await response.json()) as { run?: { id: string }; error?: string };
+      const data = (await response.json()) as { run?: { id: string } };
       if (data.run?.id) router.push(`/runs/${data.run.id}`);
     });
   }
 
   return (
-    <section className="space-y-3">
-      <div className="terminal-panel bg-[#101311] p-3">
-        <div className="mb-3 flex items-center justify-between">
-          <div>
-            <div className="terminal-label">Universal Prompt Router</div>
-            <div className="mt-1 text-xs text-[#6f6a61]">{selectedSkill ? `${selectedSkill.name} · ${selectedSkill.executionMode}` : "type any prompt or pick a skill below"}</div>
-          </div>
-          <div className="flex gap-2">
-            <Button onClick={() => setPrompt("")} type="button">
-              <RotateCcw size={14} /> Clear
-            </Button>
-            <Button onClick={run} disabled={!prompt.trim() || isPending} type="button" className="border-[#e86f3a] text-[#e86f3a]">
-              <Play size={14} /> {isPending ? "Running" : "Run"}
-            </Button>
+    <section className="space-y-8">
+      <div className="space-y-5">
+        <div className="terminal-panel bg-[#121411] p-3">
+          <div className="terminal-label mb-7">Ready</div>
+          <div className="px-1 pb-2">
+            <div className="text-[27px] font-black leading-none tracking-[0.04em] text-[#f4f1e8] md:text-[31px]">
+              RUN A <span className="text-[#e86f3a]">SKILL</span> TO BEGIN
+            </div>
+            <div className="mt-7 text-[0.68rem] text-[#8b857b]">click a skill - press run - or type any prompt</div>
           </div>
         </div>
-        <textarea
-          value={prompt}
-          onChange={(event) => setPrompt(event.target.value)}
-          placeholder="type any prompt, or pick a skill below to load a template..."
-          className="min-h-36 w-full resize-y border border-[#2a302c] bg-[#080a09] p-3 text-sm leading-6 text-[#f4f1e8] outline-none placeholder:text-[#6f6a61] focus:border-[#e86f3a]"
-        />
+
+        <div>
+          <div className="terminal-label mb-2 text-[#e86f3a]">Prompt</div>
+          <textarea
+            value={prompt}
+            onChange={(event) => setPrompt(event.target.value)}
+            placeholder="type any prompt, or pick a skill below to load a template..."
+            className="min-h-24 w-full resize-y rounded-[4px] border border-[#30342c] bg-[#151713] p-3 text-[0.72rem] leading-5 text-[#f4f1e8] outline-none placeholder:text-[#8b857b] focus:border-[#e86f3a]"
+          />
+          <div className="mt-3 grid grid-cols-[1fr_180px] gap-3">
+            <Button onClick={run} disabled={!prompt.trim() || isPending} type="button" className="border-[#30342c] bg-[#10120f]">
+              {isPending ? "Running" : "Run"} <ArrowRight size={13} />
+            </Button>
+            <Button onClick={() => setPrompt("")} type="button">
+              Clear
+            </Button>
+          </div>
+          <div className="mt-2 text-[0.58rem] uppercase tracking-[0.14em] text-[#6f6a61]">
+            {selectedSkill ? `${selectedSkill.name} / ${selectedSkill.executionMode}` : "router standing by"}
+          </div>
+        </div>
       </div>
+
       <SkillGrid skills={skills} onSelect={selectSkill} />
     </section>
   );

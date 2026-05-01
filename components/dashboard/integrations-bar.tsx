@@ -3,12 +3,13 @@ import type { Integration } from "@/types";
 
 export function IntegrationsBar({ integrations }: { integrations: Integration[] }) {
   return (
-    <section className="terminal-panel flex flex-wrap items-center gap-3 bg-[#101311] p-3">
-      <span className="terminal-label mr-2">Integrations</span>
-      {integrations.map((integration) => (
-        <span key={integration.id} className="inline-flex items-center gap-2 border border-[#2a302c] bg-[#080a09] px-2 py-1 text-[0.68rem] uppercase tracking-[0.08em] text-[#a8a29a]">
+    <section className="terminal-panel flex min-h-7 flex-wrap items-center gap-3 bg-[#121411] px-3 py-2">
+      <span className="terminal-label mr-1 text-[#e86f3a]">Integrations</span>
+      <span className="h-3 w-px bg-[#30342c]" />
+      {integrations.slice(0, 7).map((integration) => (
+        <span key={integration.id} className="inline-flex items-center gap-1.5 text-[0.55rem] font-bold uppercase tracking-[0.12em] text-[#d0ccc2]">
           <StatusDot status={integration.status} />
-          {integration.name}
+          {integration.name}:{integration.id}
         </span>
       ))}
     </section>
