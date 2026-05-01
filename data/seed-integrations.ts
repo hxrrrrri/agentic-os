@@ -1,0 +1,138 @@
+import type { Integration, IntegrationAction, PermissionLevel, RiskLevel } from "@/types";
+
+function actions(names: Array<[string, RiskLevel, PermissionLevel]>): IntegrationAction[] {
+  return names.map(([name, riskLevel, permissionLevel]) => ({
+    id: name.toLowerCase().replaceAll(" ", "-"),
+    name,
+    riskLevel,
+    permissionLevel,
+  }));
+}
+
+export const seedIntegrations: Integration[] = [
+  {
+    id: "github",
+    name: "GitHub",
+    status: "partial",
+    mode: "mock",
+    description: "Repo reading, issue workflows, PR summaries, reviews, changelogs, and release notes.",
+    enabled: true,
+    actions: actions([
+      ["Read repositories", "low", "read-only"],
+      ["Create issue", "medium", "approval-required"],
+      ["Push branch", "high", "approval-required"],
+    ]),
+  },
+  {
+    id: "gmail",
+    name: "Gmail",
+    status: "not_configured",
+    mode: "mock",
+    description: "Inbox summaries, triage, drafts, and follow-up queues. Sending is always approval-gated.",
+    enabled: true,
+    actions: actions([
+      ["Read inbox", "low", "read-only"],
+      ["Create draft", "medium", "draft-only"],
+      ["Send email", "critical", "approval-required"],
+    ]),
+  },
+  {
+    id: "google-drive",
+    name: "Google Drive",
+    status: "not_configured",
+    mode: "mock",
+    description: "Document discovery, grouping, cleanup suggestions, and prep material.",
+    enabled: true,
+    actions: actions([
+      ["Read files", "low", "read-only"],
+      ["Move file", "high", "approval-required"],
+    ]),
+  },
+  {
+    id: "google-calendar",
+    name: "Google Calendar",
+    status: "not_configured",
+    mode: "mock",
+    description: "Daily agenda, meeting prep, and schedule-aware briefs.",
+    enabled: true,
+    actions: actions([
+      ["Read events", "low", "read-only"],
+      ["Create event", "medium", "approval-required"],
+    ]),
+  },
+  {
+    id: "stripe",
+    name: "Stripe",
+    status: "not_configured",
+    mode: "mock",
+    description: "Revenue summaries, failed payments, churn risk, subscriptions, and refunds.",
+    enabled: true,
+    actions: actions([
+      ["Read revenue", "low", "read-only"],
+      ["Issue refund", "critical", "approval-required"],
+    ]),
+  },
+  {
+    id: "shopify",
+    name: "Shopify",
+    status: "not_configured",
+    mode: "mock",
+    description: "Orders, product performance, inventory alerts, and customer support drafts.",
+    enabled: true,
+    actions: actions([
+      ["Read orders", "low", "read-only"],
+      ["Update product", "high", "approval-required"],
+    ]),
+  },
+  {
+    id: "crm",
+    name: "CRM",
+    status: "not_configured",
+    mode: "mock",
+    description: "Lead follow-ups, deal review, client status reports, and CRM summaries.",
+    enabled: true,
+    actions: actions([
+      ["Read contacts", "low", "read-only"],
+      ["Update customer", "high", "approval-required"],
+    ]),
+  },
+  {
+    id: "obsidian",
+    name: "Obsidian",
+    status: "connected",
+    mode: "mock",
+    description: "Local markdown vault browsing, indexing, and memory extraction.",
+    enabled: true,
+    actions: actions([["Read/write vault", "medium", "approval-required"]]),
+  },
+  {
+    id: "firecrawl",
+    name: "Firecrawl",
+    status: "not_configured",
+    mode: "mock",
+    description: "Search, scrape, crawl, and structured extraction for research workflows.",
+    enabled: true,
+    actions: actions([["Scrape page", "low", "read-only"]]),
+  },
+  {
+    id: "notebooklm",
+    name: "NotebookLM",
+    status: "not_configured",
+    mode: "mock",
+    description: "NotebookLM source placeholder for future adapter support.",
+    enabled: true,
+    actions: actions([["Open notebook", "medium", "approval-required"]]),
+  },
+  {
+    id: "mcp",
+    name: "MCP",
+    status: "partial",
+    mode: "mock",
+    description: "Model Context Protocol server registry and tool adapter layer.",
+    enabled: true,
+    actions: actions([
+      ["List tools", "low", "read-only"],
+      ["Call tool", "high", "approval-required"],
+    ]),
+  },
+];

@@ -1,0 +1,85 @@
+@import "tailwindcss";
+
+:root {
+  --background: #080a09;
+  --panel: #101311;
+  --panel-2: #141815;
+  --border: #2a302c;
+  --border-soft: #1d231f;
+  --accent: #e86f3a;
+  --accent-muted: #a94e2b;
+  --text: #f4f1e8;
+  --text-secondary: #a8a29a;
+  --text-muted: #6f6a61;
+  --success: #79a875;
+  --warning: #c99a45;
+  --error: #c4605a;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--background);
+  color: var(--text);
+  color-scheme: dark;
+}
+
+body {
+  min-height: 100vh;
+  margin: 0;
+  background:
+    linear-gradient(rgba(232, 111, 58, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(232, 111, 58, 0.028) 1px, transparent 1px),
+    radial-gradient(circle at 50% 0%, rgba(232, 111, 58, 0.08), transparent 34rem),
+    var(--background);
+  background-size: 34px 34px, 34px 34px, auto, auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+::selection {
+  background: rgba(232, 111, 58, 0.35);
+}
+
+.terminal-panel {
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--panel) 92%, black);
+  box-shadow: inset 0 1px rgba(244, 241, 232, 0.03), 0 0 0 1px rgba(0, 0, 0, 0.35);
+}
+
+.terminal-label {
+  color: var(--text-muted);
+  font-size: 0.68rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.scanline {
+  position: relative;
+}
+
+.scanline::after {
+  content: "";
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.02),
+    rgba(255, 255, 255, 0.02) 1px,
+    transparent 1px,
+    transparent 5px
+  );
+  opacity: 0.35;
+}
+
+.thin-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: var(--accent-muted) transparent;
+}
