@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Circle, Code2, FileText, Folder, HardDrive, Sparkle } from "lucide-react";
+import { Circle, Code2, FileText, Folder, HardDrive, Settings, Sparkle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 const nav = [
@@ -8,6 +8,7 @@ const nav = [
   ["Daily Note", "/vault", FileText],
   ["Runs Folder", "/runs", Folder],
   ["Drafts", "/vault?path=drafts", Sparkle],
+  ["Settings", "/settings", Settings],
 ] as const;
 
 export function AppShell({ children }: { children: React.ReactNode }) {

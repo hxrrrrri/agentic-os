@@ -5,7 +5,7 @@ import { useState, useTransition } from "react";
 import { ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SkillGrid } from "@/components/dashboard/skill-grid";
-import type { Skill } from "@/types";
+import type { SelectedModelProfile, Skill } from "@/types";
 
 export function PromptConsole({ skills }: { skills: Skill[] }) {
   const router = useRouter();
@@ -22,10 +22,25 @@ export function PromptConsole({ skills }: { skills: Skill[] }) {
 
   function run() {
     startTransition(async () => {
+      const providerId = window.localStorage.getItem("agenticos.activeProvider");
+      const storedModels = window.localStorage.getItem("agenticos.providerModels");
+      let selectedModels: Record<string, string> = {};
+
+      if (storedModels) {
+        try {
+          selectedModels = JSON.parse(storedModels) as Record<string, string>;
+        } catch {
+          selectedModels = {};
+        }
+      }
+      const modelProfile: SelectedModelProfile | undefined =
+        providerId && selectedModels[providerId]
+          ? { providerId, model: selectedModels[providerId] }
+          : undefined;
       const response = await fetch("/api/runs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt, skillId: selectedSkill?.id, dryRun: true }),
+        body: JSON.stringify({ prompt, skillId: selectedSkill?.id, dryRun: true, modelProfile }),
       });
       const data = (await response.json()) as { run?: { id: string } };
       if (data.run?.id) router.push(`/runs/${data.run.id}`);

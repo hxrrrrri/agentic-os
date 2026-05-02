@@ -36,6 +36,7 @@ export type ModelProvider =
   | "gemini"
   | "grok"
   | "anthropic"
+  | "nvidia"
   | "local"
   | "custom";
 
@@ -43,7 +44,15 @@ export interface ModelEndpoint {
   id: string;
   provider: ModelProvider;
   model: string;
+  models?: string[];
   baseUrl?: string;
   mode: "cloud" | "local" | "cli";
   enabled: boolean;
+  dynamicModels?: boolean;
+  requiresApiKey?: boolean;
+}
+
+export interface SelectedModelProfile {
+  providerId: string;
+  model: string;
 }

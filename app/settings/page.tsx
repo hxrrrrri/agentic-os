@@ -1,10 +1,11 @@
-import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
+import { ModelProviderProfiles } from "@/components/settings/model-provider-profiles";
 import { agenticosConfig } from "@/agenticos.config";
 import { listModelProviders } from "@/lib/agent/providers";
 
 export default function SettingsPage() {
   const providers = listModelProviders();
+
   return (
     <div className="space-y-4">
       <div>
@@ -30,18 +31,7 @@ export default function SettingsPage() {
         </Card>
         <Card>
           <CardHeader><CardTitle>Model Providers</CardTitle></CardHeader>
-          <div className="space-y-2">
-            {providers.map((provider) => (
-              <div key={provider.id} className="grid grid-cols-[1fr_auto_auto] gap-2 border border-[#2a302c] bg-[#080a09] p-3 text-xs">
-                <div>
-                  <div className="text-[#f4f1e8]">{provider.provider}</div>
-                  <div className="mt-1 text-[#6f6a61]">{provider.model}{provider.baseUrl ? ` · ${provider.baseUrl}` : ""}</div>
-                </div>
-                <Badge>{provider.mode}</Badge>
-                <Badge tone={provider.enabled ? "green" : "gray"}>{provider.enabled ? "enabled" : "disabled"}</Badge>
-              </div>
-            ))}
-          </div>
+          <ModelProviderProfiles providers={providers} />
         </Card>
         <Card>
           <CardHeader><CardTitle>Permission Defaults</CardTitle></CardHeader>

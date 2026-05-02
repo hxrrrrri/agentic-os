@@ -9,6 +9,10 @@ const RunRequestSchema = z.object({
   prompt: z.string().min(1),
   skillId: z.string().optional(),
   dryRun: z.boolean().optional(),
+  modelProfile: z.object({
+    providerId: z.string().min(1),
+    model: z.string().min(1),
+  }).optional(),
 });
 
 export async function GET() {

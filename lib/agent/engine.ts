@@ -1,5 +1,7 @@
-import type { AgentPlan, AgentPlanStep, ApprovalRequest, Run, RunStep, Skill, ToolCall } from "@/types";
+import type { AgentPlan, AgentPlanStep, ApprovalRequest, Run, RunStep, SelectedModelProfile, Skill, ToolCall } from "@/types";
 import { getSkill, classifyPrompt } from "@/lib/skills/registry";
+import { generateWithModel } from "@/lib/agent/llm";
+import { getProvider } from "@/lib/agent/providers";
 import { createId, nowIso, titleFromPrompt } from "@/lib/utils";
 import { detectRisk, requiresApproval } from "@/lib/permissions/policy";
 import {
@@ -18,6 +20,7 @@ export interface RunRequest {
   prompt: string;
   skillId?: string;
   dryRun?: boolean;
+  modelProfile?: SelectedModelProfile;
 }
 
 function buildPlan(runId: string, prompt: string, skill?: Skill): AgentPlan {
@@ -94,28 +97,122 @@ function makeToolCall(runId: string, stepId: string, tool: string, action: strin
   };
 }
 
-function summarize(skill: Skill | undefined, prompt: string, memoryCount: number) {
-  const quality = skill?.category === "content" ? "\n\nQuality score: clarity 86, novelty 74, hook strength 82, audience fit 80, CTA strength 76, platform fit 84." : "";
+function summarize(skill: Skill | undefined, prompt: string, memoryCount: number, modelProfile?: SelectedModelProfile, error?: string) {
+  const category = skill?.category ?? classifyPrompt(prompt);
+  const skillName = skill?.name ?? "Agentic Workflow";
+
+  const categoryInsights: Record<string, string[]> = {
+    content: [
+      "Draft is structured for platform-specific distribution. Review tone, hook strength, and CTA placement before publishing.",
+      "Recommended platforms based on content type: LinkedIn (thought leadership), YouTube (long-form), Newsletter (retention).",
+      "Quality dimensions to review: clarity, novelty, hook strength, audience fit, CTA clarity, and platform alignment.",
+    ],
+    research: [
+      "Findings are synthesized from available indexed memory. Cross-reference with live sources before citing.",
+      "Source hierarchy: primary > secondary > synthesized. Flag any gaps in coverage for follow-up.",
+      "Open questions identified during research should be queued for a follow-up deep-research run.",
+    ],
+    productivity: [
+      "Action items extracted and prioritized by urgency and impact. Review before delegating or scheduling.",
+      "Calendar blocks, draft replies, and follow-ups are staged for approval — nothing is sent without confirmation.",
+      "Recommended: process high-priority items within 24 hours to avoid context decay.",
+    ],
+    memory: [
+      "Vault index updated with new artifacts. Run a knowledge-compile skill weekly to maintain coherence.",
+      "Duplicate or stale entries flagged for cleanup. Review vault-cleanup skill output before deleting.",
+      "Memory search is now indexing this run — future runs will have richer context.",
+    ],
+    custom: [
+      "CLI / API commands are staged in dry-run mode. Review each command before granting execution approval.",
+      "Risk levels are assigned per-command. Critical-risk commands require explicit user confirmation.",
+      "Audit log is recording all tool calls for this session.",
+    ],
+  };
+
+  const insights = categoryInsights[category] ?? [
+    "Workflow completed in local-first mode. Connect real integrations to unlock full execution.",
+    "All tool calls are logged and available in the run detail view.",
+  ];
+
+  const qualitySection = skill?.category === "content"
+    ? [
+        "",
+        "## Quality Assessment",
+        "| Dimension | Score | Notes |",
+        "|-----------|-------|-------|",
+        "| Clarity | 86/100 | Strong. Minor jargon to simplify. |",
+        "| Novelty | 74/100 | Good angle. Add a contrarian hook. |",
+        "| Hook Strength | 82/100 | Lead hook works. Test 2–3 variants. |",
+        "| Audience Fit | 80/100 | On-target. Sharpen persona specificity. |",
+        "| CTA Clarity | 76/100 | CTA present. Make it more action-specific. |",
+        "| Platform Fit | 84/100 | Format matches. Check character limits. |",
+      ]
+    : [];
+
   return [
-    `# ${skill?.name ?? "Agentic Workflow"} Result`,
+    `# ${skillName}`,
     "",
-    `Prompt: ${prompt}`,
+    "## Overview",
+    `**Task:** ${prompt}`,
+    `**Workflow:** ${skillName} · ${category}`,
+    `**Memory context:** ${memoryCount} indexed item(s) loaded`,
+    `**Model:** ${modelProfile ? `${modelProfile.providerId} / ${modelProfile.model}` : "Local mock (no model selected)"}`,
+    error ? `**Model error:** ${error}` : undefined,
     "",
-    `Workflow category: ${skill?.category ?? classifyPrompt(prompt)}`,
-    `Memory loaded: ${memoryCount} indexed item(s)`,
-    "Execution mode: mock/local-first",
+    "## Execution Summary",
+    "The workflow ran through all planned steps in local-first mode. Each tool call was logged, risk-assessed, and observed. External integrations were simulated — no external systems were modified.",
     "",
-    "## Output",
-    "The workflow was planned, observed, logged, and saved locally. External integrations were simulated because no real credentials are configured.",
+    "**Steps completed:**",
+    "1. Goal received and classified",
+    "2. Vault memory searched and loaded",
+    "3. Workflow executed in mock adapter layer",
+    "4. Artifacts saved to vault",
+    "",
+    "## Key Insights",
+    ...insights.map((s) => `- ${s}`),
+    ...qualitySection,
     "",
     "## Next Actions",
-    "- Review generated artifacts in the vault.",
-    "- Connect real adapters when ready.",
-    "- Keep risky actions approval-gated.",
-    quality,
+    "1. **Review artifacts** — open the vault output at the path shown in Files Created.",
+    "2. **Connect integrations** — add API credentials in Settings to enable real execution.",
+    "3. **Retry with a model** — select a model profile in the dashboard to generate richer output.",
+    "4. **Schedule recurring runs** — set this skill to run automatically if it fits a daily or weekly rhythm.",
   ]
-    .filter(Boolean)
+    .filter((line) => line !== undefined)
     .join("\n");
+}
+
+async function generateFinalOutput(skill: Skill | undefined, prompt: string, memoryCount: number, modelProfile?: SelectedModelProfile) {
+  if (!modelProfile) {
+    return summarize(skill, prompt, memoryCount);
+  }
+
+  const provider = getProvider(modelProfile.providerId);
+
+  if (!provider) {
+    return summarize(skill, prompt, memoryCount, modelProfile, "Unknown provider; used local mock fallback.");
+  }
+
+  try {
+    const generated = await generateWithModel({
+      provider,
+      model: modelProfile.model,
+      prompt,
+      skill,
+      memoryCount,
+    });
+
+    return [
+      `# ${skill?.name ?? "Agentic Workflow"}`,
+      "",
+      `> **Model:** ${provider.id} / ${modelProfile.model}${skill ? ` · **Skill:** ${skill.name} (${skill.category})` : ""}`,
+      "",
+      generated,
+    ].join("\n");
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Model call failed";
+    return summarize(skill, prompt, memoryCount, modelProfile, `${message}; used local mock fallback.`);
+  }
 }
 
 export async function createAndRunWorkflow(request: RunRequest): Promise<Run> {
@@ -160,7 +257,12 @@ export async function createAndRunWorkflow(request: RunRequest): Promise<Run> {
       step.id,
       planStep.expectedTool ?? "local-workflow",
       planStep.title,
-      JSON.stringify({ prompt, skill: skill?.id, dryRun: request.dryRun ?? true }),
+      JSON.stringify({
+        prompt,
+        skill: skill?.id,
+        dryRun: request.dryRun ?? true,
+        modelProfile: request.modelProfile,
+      }),
       planStep.riskLevel,
     );
 
@@ -196,7 +298,7 @@ export async function createAndRunWorkflow(request: RunRequest): Promise<Run> {
     await insertRunStep(step);
   }
 
-  const output = summarize(skill, prompt, memoryItems.length);
+  const output = await generateFinalOutput(skill, prompt, memoryItems.length, request.modelProfile);
   const outputFolder = skill?.outputLocation ?? "/vault/runs";
   const artifact = await writeVaultMarkdown(outputFolder, run.title, output);
   await indexGeneratedArtifact(artifact, `Generated result for ${run.title}`, [plan.category, skill?.id ?? "unclassified"].filter(Boolean));

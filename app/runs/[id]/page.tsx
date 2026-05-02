@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusDot } from "@/components/ui/status-dot";
+import { MarkdownOutput } from "@/components/ui/markdown-output";
 import { getRun, getRunPlan } from "@/lib/db/repositories";
 import { formatTime } from "@/lib/utils";
 
@@ -62,7 +63,9 @@ export default async function RunDetailPage({ params }: { params: Promise<{ id: 
           </Card>
           <Card>
             <CardHeader><CardTitle>Final Output</CardTitle></CardHeader>
-            <pre className="whitespace-pre-wrap border border-[#2a302c] bg-[#080a09] p-3 text-sm leading-6 text-[#a8a29a]">{run.finalOutput ?? "No output yet."}</pre>
+            <div className="border border-[#2a302c] bg-[#080a09] p-4 text-sm">
+              <MarkdownOutput content={run.finalOutput ?? "No output yet."} />
+            </div>
           </Card>
         </div>
         <aside className="space-y-4">
