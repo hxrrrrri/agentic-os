@@ -6,9 +6,10 @@ export interface GenerateWithModelRequest {
   prompt: string;
   skill?: Skill;
   memoryCount: number;
+  projectContext?: string;
 }
 
-function systemPrompt(skill?: Skill) {
+function systemPrompt(skill?: Skill, projectContext?: string) {
   return [
     "You are AgenticOS, an expert AI workflow operator with deep knowledge across research, content, productivity, and automation domains.",
     "",
@@ -28,6 +29,7 @@ function systemPrompt(skill?: Skill) {
     skill ? `\n## Active Skill: ${skill.name}` : undefined,
     skill ? `Category: ${skill.category} | Output: ${skill.outputLocation}` : undefined,
     skill ? `Produce output exactly matched to this skill's purpose. Stay focused on the task.` : undefined,
+    projectContext ? `\n${projectContext}` : undefined,
   ]
     .filter(Boolean)
     .join("\n");
@@ -67,7 +69,7 @@ async function generateWithOllama(request: GenerateWithModelRequest) {
       model: request.model,
       stream: false,
       messages: [
-        { role: "system", content: systemPrompt(request.skill) },
+        { role: "system", content: systemPrompt(request.skill, request.projectContext) },
         { role: "user", content: userPrompt(request.prompt, request.memoryCount) },
       ],
     }),
@@ -105,7 +107,7 @@ async function generateWithNvidia(request: GenerateWithModelRequest) {
       temperature: 0.4,
       max_tokens: 2048,
       messages: [
-        { role: "system", content: systemPrompt(request.skill) },
+        { role: "system", content: systemPrompt(request.skill, request.projectContext) },
         { role: "user", content: userPrompt(request.prompt, request.memoryCount) },
       ],
     }),

@@ -11,6 +11,22 @@ const nav = [
   ["Settings", "/settings", Settings],
 ] as const;
 
+function AgenticOsMark() {
+  return (
+    <span
+      aria-hidden="true"
+      className="relative block h-8 w-8 shrink-0"
+    >
+      <span className="absolute left-[6px] top-[4px] h-[18px] w-[20px] rounded-t-[2px] bg-[#e86f3a] shadow-[0_0_0_1px_#9e4a28]" />
+      <span className="absolute left-[8px] top-[22px] h-[6px] w-[4px] bg-[#e86f3a] shadow-[0_0_0_1px_#9e4a28]" />
+      <span className="absolute left-[15px] top-[22px] h-[6px] w-[4px] bg-[#e86f3a] shadow-[0_0_0_1px_#9e4a28]" />
+      <span className="absolute left-[22px] top-[22px] h-[6px] w-[4px] bg-[#e86f3a] shadow-[0_0_0_1px_#9e4a28]" />
+      <span className="absolute left-[9px] top-[10px] h-[3px] w-[3px] bg-[#080a09]" />
+      <span className="absolute left-[20px] top-[10px] h-[3px] w-[3px] bg-[#080a09]" />
+    </span>
+  );
+}
+
 export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen">
@@ -18,11 +34,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <div className="app-frame">
           <div className="flex items-start justify-between gap-6">
             <Link href="/dashboard" className="flex items-center gap-4">
-              <span className="relative grid h-5 w-5 place-items-center bg-[#e86f3a] text-[9px] font-black text-[#080a09] shadow-[0_0_0_1px_#5f2b1a]">
-                <span className="absolute -top-1 left-0 h-1 w-1 bg-[#e86f3a]" />
-                <span className="absolute -top-1 right-0 h-1 w-1 bg-[#e86f3a]" />
-                ::
-              </span>
+              <AgenticOsMark />
               <div className="text-[34px] font-black leading-none tracking-[0.16em] text-[#f4f1e8]">
                 AGENTIC<span className="text-[#e86f3a]">OS</span>
               </div>

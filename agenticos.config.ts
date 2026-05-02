@@ -2,6 +2,8 @@ import path from "node:path";
 
 export const agenticosConfig = {
   appName: "AgenticOS",
+  projectContextPath:
+    process.env.AGENTICOS_PROJECT_CONTEXT_PATH ?? path.join(process.cwd(), ".agenticos-project"),
   vaultPath: process.env.AGENTICOS_VAULT_PATH ?? path.join(process.cwd(), "vault"),
   databasePath:
     process.env.AGENTICOS_DB_PATH ?? path.join(process.cwd(), ".agenticos", "agenticos.sqlite"),

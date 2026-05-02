@@ -29,6 +29,27 @@ AgenticOS creates runtime data locally:
 
 These are ignored by Git by default.
 
+## Project Intelligence
+
+AgenticOS also ships with a portable project context folder:
+
+- `.agenticos-project/project.md` canonical project purpose and operating principles
+- `.agenticos-project/rules/` provider-agnostic safety and artifact rules
+- `.agenticos-project/agents/` specialist agent playbooks
+- `.agenticos-project/skills/` reusable workflow playbooks
+- `.agenticos-project/commands/` slash-style workflow definitions
+- `.agenticos-project/output-styles/` response format contracts
+- `.agenticos-project/hooks/` lifecycle hook contracts
+- `.agenticos-project/providers/` provider-specific guidance
+
+Unlike `.agenticos/`, this folder is intended to be versioned. The run engine loads its markdown into the model context before generation so local and cloud providers receive the same project instructions.
+
+Override its location with:
+
+```bash
+AGENTICOS_PROJECT_CONTEXT_PATH="D:/AgenticOS/project-context"
+```
+
 Set custom paths with:
 
 ```bash

@@ -2,6 +2,7 @@ import type { AgentPlan, AgentPlanStep, ApprovalRequest, Run, RunStep, SelectedM
 import { getSkill, classifyPrompt } from "@/lib/skills/registry";
 import { generateWithModel } from "@/lib/agent/llm";
 import { getProvider } from "@/lib/agent/providers";
+import { loadProjectModelContext } from "@/lib/agent/project-context";
 import { createId, nowIso, titleFromPrompt } from "@/lib/utils";
 import { detectRisk, requiresApproval } from "@/lib/permissions/policy";
 import {
@@ -183,6 +184,8 @@ function summarize(skill: Skill | undefined, prompt: string, memoryCount: number
 }
 
 async function generateFinalOutput(skill: Skill | undefined, prompt: string, memoryCount: number, modelProfile?: SelectedModelProfile) {
+  const projectContext = await loadProjectModelContext();
+
   if (!modelProfile) {
     return summarize(skill, prompt, memoryCount);
   }
@@ -200,6 +203,7 @@ async function generateFinalOutput(skill: Skill | undefined, prompt: string, mem
       prompt,
       skill,
       memoryCount,
+      projectContext,
     });
 
     return [
