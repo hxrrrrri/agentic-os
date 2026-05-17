@@ -1,4 +1,5 @@
 import type { Run } from "@/types";
+import { agenticosConfig } from "@/agenticos.config";
 
 export function buildActivitySeries(runs: Run[]) {
   const today = new Date();
@@ -24,26 +25,34 @@ export function lastSevenDays(runs: Run[]) {
 }
 
 export function usageMetrics(runs: Run[]) {
+  const now = Date.now();
+  const fiveHoursAgo = now - 5 * 60 * 60 * 1000;
+  const weekAgo = now - 7 * 24 * 60 * 60 * 1000;
   const today = new Date().toISOString().slice(0, 10);
+
+  const fiveHourRuns = runs.filter((run) => new Date(run.startedAt).getTime() >= fiveHoursAgo);
+  const weeklyRuns = runs.filter((run) => new Date(run.startedAt).getTime() >= weekAgo);
   const todayRuns = runs.filter((run) => run.startedAt.startsWith(today));
-  const tokens = todayRuns.reduce((sum, run) => sum + run.tokensEstimate, 0);
+  const fiveHourTokens = fiveHourRuns.reduce((sum, run) => sum + run.tokensEstimate, 0);
+  const weeklyMinutes = weeklyRuns.reduce((sum, run) => sum + Math.max(0, Math.round((run.durationMs ?? 0) / 60_000)), 0);
   const completed = todayRuns.filter((run) => run.status === "completed").length;
+
   return {
     fiveHour: {
-      used: tokens || 48_200,
-      max: 200_000,
-      sessions: Math.max(todayRuns.length, 4),
-      reset: "03:12",
+      used: fiveHourTokens,
+      max: agenticosConfig.budgets.fiveHourTokens,
+      sessions: fiveHourRuns.length,
+      reset: new Date(fiveHoursAgo + 10 * 60 * 60 * 1000).toISOString(),
     },
     weekly: {
-      used: runs.reduce((sum, run) => sum + Math.max(1, Math.round((run.durationMs ?? 90_000) / 60_000)), 0) || 284,
-      max: 1_200,
-      sessions: Math.max(runs.length, 18),
+      used: weeklyMinutes,
+      max: agenticosConfig.budgets.weeklyMinutes,
+      sessions: weeklyRuns.length,
     },
     routines: {
-      completed: Math.max(completed, 7),
-      max: 25,
-      value: "$1,840",
+      completed,
+      max: agenticosConfig.budgets.dailyRoutines,
+      value: `${todayRuns.length} run${todayRuns.length === 1 ? "" : "s"} today`,
     },
   };
 }

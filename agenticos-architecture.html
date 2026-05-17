@@ -1,0 +1,1705 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AgenticOS — World-Class Architecture v3.0</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Orbitron:wght@400;700;900&display=swap');
+
+:root {
+  --bg: #050708;
+  --bg-soft: #080b0e;
+  --panel: #0c1014;
+  --panel2: #11161c;
+  --panel3: #161c24;
+  --border: #1f2a35;
+  --border-soft: #182026;
+  --border-glow: #2a4a5f;
+  --accent: #00d4ff;
+  --accent2: #ff8a4c;
+  --accent3: #79ff9a;
+  --accent4: #c97aff;
+  --accent5: #f5c842;
+  --accent6: #ff5577;
+  --text: #e6f0f7;
+  --text2: #8aa4b5;
+  --text3: #4a6678;
+  --danger: #ff5566;
+  --radius: 8px;
+  --pad: 22px;
+  --gap: 20px;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 16px;
+  line-height: 1.6;
+  min-height: 100vh;
+  scroll-behavior: smooth;
+}
+
+body {
+  background:
+    radial-gradient(ellipse 90% 70% at 50% -20%, rgba(0,212,255,0.06), transparent 70%),
+    radial-gradient(ellipse 50% 40% at 100% 100%, rgba(255,138,76,0.04), transparent 70%),
+    radial-gradient(ellipse 50% 40% at 0% 100%, rgba(201,122,255,0.03), transparent 70%),
+    var(--bg);
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(0,212,255,0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,212,255,0.025) 1px, transparent 1px);
+  background-size: 80px 80px;
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0.6;
+}
+
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent 0px,
+    transparent 3px,
+    rgba(0,0,0,0.04) 3px,
+    rgba(0,0,0,0.04) 4px
+  );
+  pointer-events: none;
+  z-index: 2;
+  opacity: 0.35;
+}
+
+.wrap {
+  position: relative;
+  z-index: 5;
+  max-width: 1480px;
+  margin: 0 auto;
+  padding: 64px 36px 96px;
+}
+
+/* ═══════════════════════ NAV ═══════════════════════ */
+.topnav {
+  position: sticky;
+  top: 16px;
+  z-index: 100;
+  margin-bottom: 32px;
+  display: flex;
+  justify-content: center;
+}
+.topnav-inner {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background: rgba(8, 12, 16, 0.85);
+  backdrop-filter: blur(14px);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+}
+.topnav a {
+  color: var(--text2);
+  text-decoration: none;
+  font-size: 0.78rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  padding: 6px 14px;
+  border-radius: 999px;
+  transition: all 0.18s;
+  white-space: nowrap;
+}
+.topnav a:hover { color: var(--accent); background: rgba(0,212,255,0.08); }
+.topnav-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent3);
+  margin-right: 8px;
+  animation: pulse 1.6s ease-in-out infinite;
+}
+
+/* ═══════════════════════ HEADER ═══════════════════════ */
+.hdr {
+  text-align: center;
+  margin-bottom: 72px;
+  padding: 32px 0;
+}
+.hdr-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid var(--border-glow);
+  background: linear-gradient(90deg, rgba(0,212,255,0.05), rgba(0,212,255,0.1), rgba(0,212,255,0.05));
+  padding: 10px 24px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 28px;
+}
+.hdr-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--accent); animation: pulse 1.5s ease-in-out infinite; }
+@keyframes pulse { 0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(0,212,255,0.5)} 50%{opacity:0.6;box-shadow:0 0 0 8px rgba(0,212,255,0)} }
+
+.hdr-title {
+  font-family: 'Orbitron', monospace;
+  font-size: clamp(3.2rem, 7vw, 6.4rem);
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  line-height: 1;
+  margin-bottom: 20px;
+}
+.hdr-title .agt { color: var(--accent); text-shadow: 0 0 60px rgba(0,212,255,0.45); }
+.hdr-title .os { color: var(--text); }
+.hdr-sub {
+  font-size: 1rem;
+  letter-spacing: 0.2em;
+  color: var(--text2);
+  text-transform: uppercase;
+  margin-bottom: 18px;
+}
+.hdr-sub span { color: var(--accent2); }
+
+.hdr-tagline {
+  font-size: 1.05rem;
+  color: var(--text);
+  letter-spacing: 0.04em;
+  max-width: 880px;
+  margin: 0 auto;
+  line-height: 1.7;
+  opacity: 0.88;
+}
+
+.hdr-actions {
+  margin-top: 28px;
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 22px;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  font-weight: 700;
+  text-decoration: none;
+  border: 1px solid var(--border);
+  color: var(--text);
+  background: var(--panel2);
+  transition: all 0.2s;
+}
+.btn:hover { border-color: var(--accent); color: var(--accent); transform: translateY(-1px); }
+.btn-primary { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+.btn-primary:hover { background: transparent; color: var(--accent); }
+
+/* ═══════════════════════ SECTION ═══════════════════════ */
+.section { margin-bottom: 80px; }
+.section:last-child { margin-bottom: 0; }
+
+.sec-head {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin-bottom: 12px;
+}
+.sec-head-num {
+  font-family: 'Orbitron', monospace;
+  font-size: 0.9rem;
+  font-weight: 900;
+  color: var(--accent);
+  letter-spacing: 0.2em;
+  padding: 4px 12px;
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  background: rgba(0,212,255,0.06);
+}
+.sec-head-title {
+  font-family: 'Orbitron', monospace;
+  font-size: 1.6rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  color: var(--text);
+  text-transform: uppercase;
+}
+.sec-head-rule {
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, var(--border), transparent);
+}
+.sec-desc {
+  font-size: 0.95rem;
+  color: var(--text2);
+  letter-spacing: 0.04em;
+  margin-bottom: 28px;
+  max-width: 1000px;
+  line-height: 1.7;
+}
+
+/* ═══════════════════════ CARD BASE ═══════════════════════ */
+.card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: var(--pad);
+  transition: border-color 0.2s, transform 0.2s, box-shadow 0.2s;
+  position: relative;
+  overflow: hidden;
+}
+.card:hover {
+  border-color: var(--border-glow);
+  transform: translateY(-2px);
+  box-shadow: 0 12px 32px rgba(0,0,0,0.4);
+}
+
+/* ═══════════════════════ METRICS ═══════════════════════ */
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: var(--gap);
+}
+.metric { text-align: center; padding: 24px 18px; }
+.metric-val { font-family:'Orbitron',monospace; font-size:2.4rem; font-weight:900; color:var(--accent); line-height:1; letter-spacing: 0.04em; }
+.metric-lbl { font-size:0.8rem; color:var(--text2); letter-spacing:0.16em; text-transform:uppercase; margin-top:10px; }
+
+/* ═══════════════════════ HERO FLOW ═══════════════════════ */
+.flow-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  position: relative;
+}
+.flow-row {
+  width: 100%;
+  display: grid;
+  gap: var(--gap);
+}
+.row-1 { grid-template-columns: 1fr; }
+.row-4 { grid-template-columns: repeat(4, 1fr); }
+.row-5 { grid-template-columns: repeat(5, 1fr); }
+.row-6 { grid-template-columns: repeat(6, 1fr); }
+
+.flow-connector {
+  width: 100%;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  margin: 4px 0;
+}
+.flow-connector svg { overflow: visible; }
+
+/* ═══════════════════════ USER NODE ═══════════════════════ */
+.user-node {
+  background: linear-gradient(135deg, rgba(0,212,255,0.12), rgba(0,212,255,0.02));
+  border: 1px solid rgba(0,212,255,0.4);
+  border-radius: var(--radius);
+  padding: 28px 48px;
+  text-align: center;
+  box-shadow: 0 0 60px rgba(0,212,255,0.1);
+  max-width: 720px;
+  margin: 0 auto;
+}
+.user-icon { font-size: 2.6rem; margin-bottom: 12px; }
+.user-name { font-family:'Orbitron',monospace; font-size:1.5rem; font-weight:800; letter-spacing:0.18em; color:var(--accent); }
+.user-desc { font-size:0.95rem; color:var(--text2); margin-top:10px; letter-spacing:0.06em; }
+.user-channels { display:flex; gap:8px; justify-content:center; margin-top:16px; flex-wrap:wrap; }
+.user-channels span {
+  border: 1px solid var(--border);
+  background: rgba(255,255,255,0.02);
+  padding: 5px 14px;
+  font-size: 0.74rem;
+  letter-spacing: 0.16em;
+  color: var(--text2);
+  border-radius: 999px;
+  text-transform: uppercase;
+}
+
+/* ═══════════════════════ CONDUCTOR ═══════════════════════ */
+.conductor-node {
+  background: linear-gradient(135deg, rgba(0,212,255,0.18), rgba(255,138,76,0.06) 50%, rgba(201,122,255,0.08));
+  border: 1px solid rgba(0,212,255,0.55);
+  border-radius: var(--radius);
+  padding: 36px 56px;
+  text-align: center;
+  box-shadow: 0 0 80px rgba(0,212,255,0.12), inset 0 1px 0 rgba(255,255,255,0.05);
+  position: relative;
+  overflow: hidden;
+  max-width: 720px;
+  margin: 0 auto;
+}
+.conductor-node::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(45deg, rgba(0,212,255,0.04) 0px, rgba(0,212,255,0.04) 1px, transparent 1px, transparent 14px);
+  opacity: 0.6;
+}
+.conductor-glyph {
+  width: 84px; height: 84px;
+  margin: 0 auto 16px;
+  border: 2px solid rgba(0,212,255,0.6);
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 2.4rem;
+  background: radial-gradient(circle, rgba(0,212,255,0.2), transparent 70%);
+  animation: spinGlow 6s linear infinite;
+  position: relative;
+  z-index: 1;
+}
+@keyframes spinGlow {
+  0%,100%{box-shadow:0 0 28px rgba(0,212,255,0.3)}
+  50%{box-shadow:0 0 56px rgba(0,212,255,0.55)}
+}
+.conductor-title { font-family:'Orbitron',monospace; font-size:1.8rem; font-weight:900; letter-spacing:0.24em; color:var(--accent); position:relative;z-index:1; }
+.conductor-role { font-size:0.95rem; color:var(--text2); letter-spacing:0.16em; margin-top:10px; position:relative;z-index:1; }
+.conductor-pills { display:flex; gap:8px; justify-content:center; margin-top:22px; flex-wrap:wrap; position:relative;z-index:1; }
+.pill {
+  border: 1px solid;
+  border-radius: 999px;
+  padding: 5px 14px;
+  font-size: 0.74rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.pill-b { border-color: rgba(0,212,255,0.4); color: var(--accent); background: rgba(0,212,255,0.08); }
+.pill-o { border-color: rgba(255,138,76,0.4); color: var(--accent2); background: rgba(255,138,76,0.08); }
+.pill-g { border-color: rgba(121,255,154,0.4); color: var(--accent3); background: rgba(121,255,154,0.08); }
+.pill-p { border-color: rgba(201,122,255,0.4); color: var(--accent4); background: rgba(201,122,255,0.08); }
+.pill-y { border-color: rgba(245,200,66,0.4); color: var(--accent5); background: rgba(245,200,66,0.08); }
+.pill-r { border-color: rgba(255,85,119,0.4); color: var(--accent6); background: rgba(255,85,119,0.08); }
+
+/* ═══════════════════════ MIDDLEWARE ═══════════════════════ */
+.mw-node { padding: 24px 22px; position: relative; }
+.mw-node::after {
+  content: '';
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 3px;
+}
+.mw-b::after { background: linear-gradient(90deg, transparent, var(--accent), transparent); }
+.mw-o::after { background: linear-gradient(90deg, transparent, var(--accent2), transparent); }
+.mw-g::after { background: linear-gradient(90deg, transparent, var(--accent3), transparent); }
+.mw-p::after { background: linear-gradient(90deg, transparent, var(--accent4), transparent); }
+.mw-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.mw-emoji { font-size: 1.4rem; }
+.mw-title {
+  font-family: 'Orbitron', monospace;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+.mw-b .mw-title { color: var(--accent); }
+.mw-o .mw-title { color: var(--accent2); }
+.mw-g .mw-title { color: var(--accent3); }
+.mw-p .mw-title { color: var(--accent4); }
+.mw-tag {
+  font-size: 0.65rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 3px;
+  border: 1px solid var(--border-glow);
+  color: var(--text2);
+  background: var(--bg);
+  margin-left: auto;
+}
+.mw-items { list-style: none; }
+.mw-items li {
+  font-size: 0.86rem;
+  color: var(--text2);
+  letter-spacing: 0.02em;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--border-soft);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  line-height: 1.55;
+}
+.mw-items li:last-child { border-bottom: none; }
+.mw-items li::before { content: '▸'; font-size: 0.85rem; color: var(--text3); flex-shrink: 0; }
+
+/* ═══════════════════════ DOMAIN ═══════════════════════ */
+.domain-col {
+  padding: 0;
+  overflow: hidden;
+}
+.domain-header {
+  padding: 16px 18px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.03), transparent);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.domain-icon { font-size: 1.5rem; }
+.domain-name { font-family:'Orbitron',monospace; font-size:0.92rem; font-weight:800; letter-spacing:0.16em; text-transform:uppercase; }
+.domain-count {
+  margin-left: auto;
+  font-size:0.74rem;
+  color:var(--text3);
+  letter-spacing:0.1em;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+}
+.domain-body { padding: 14px; display: flex; flex-direction: column; gap: 6px; }
+.skill-chip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border: 1px solid var(--border-soft);
+  border-radius: 5px;
+  background: rgba(255,255,255,0.015);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.skill-chip:hover { background: rgba(0,212,255,0.05); border-color: rgba(0,212,255,0.4); transform: translateX(2px); }
+.skill-name { font-size: 0.88rem; color: var(--text); letter-spacing: 0.02em; flex: 1; }
+.skill-type {
+  font-size: 0.65rem;
+  color: var(--text3);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+}
+.skill-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.dot-run { background: var(--accent); box-shadow: 0 0 8px var(--accent); animation: pulse 1.8s ease-in-out infinite; }
+.dot-ok  { background: var(--accent3); box-shadow: 0 0 6px rgba(121,255,154,0.4); }
+.dot-queue { background: var(--accent2); }
+.dot-idle { background: var(--text3); }
+
+.domain-col.d-research .domain-name { color: #5cb8e0; }
+.domain-col.d-content .domain-name { color: var(--accent2); }
+.domain-col.d-community .domain-name { color: var(--accent3); }
+.domain-col.d-agency .domain-name { color: var(--accent4); }
+.domain-col.d-sales .domain-name { color: var(--accent5); }
+.domain-col.d-ops .domain-name { color: var(--accent6); }
+
+/* ═══════════════════════ FEATURE CARDS ═══════════════════════ */
+.feature-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--gap);
+}
+.feature-card { padding: 26px 24px; }
+.feature-tag {
+  position: absolute;
+  top: 16px;
+  right: 18px;
+  font-size: 0.66rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 3px;
+}
+.feature-tag.p0 { color: var(--danger); border: 1px solid var(--danger); background: rgba(255,85,102,0.08); }
+.feature-tag.p1 { color: var(--accent2); border: 1px solid var(--accent2); background: rgba(255,138,76,0.08); }
+.feature-tag.p2 { color: var(--accent5); border: 1px solid var(--accent5); background: rgba(245,200,66,0.08); }
+.feature-icon {
+  font-size: 2rem;
+  margin-bottom: 14px;
+}
+.feature-title {
+  font-family: 'Orbitron', monospace;
+  font-size: 1.1rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  color: var(--accent);
+  margin-bottom: 10px;
+  text-transform: uppercase;
+}
+.feature-desc {
+  font-size: 0.92rem;
+  color: var(--text2);
+  line-height: 1.7;
+}
+.feature-meta {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border-soft);
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.feature-meta span {
+  font-size: 0.7rem;
+  color: var(--text3);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.025);
+}
+
+/* ═══════════════════════ AUTOMATION ═══════════════════════ */
+.auto-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--gap);
+}
+.auto-node { padding: 22px; }
+.auto-num { font-family:'Orbitron',monospace; font-size:0.9rem; color:var(--accent); margin-bottom:8px; letter-spacing: 0.2em; }
+.auto-title { font-family:'Orbitron',monospace; font-size:1rem; font-weight:800; letter-spacing:0.14em; color:var(--text); text-transform:uppercase; margin-bottom:10px; }
+.auto-desc { font-size:0.88rem; color:var(--text2); line-height:1.7; }
+.auto-badge { display:inline-block; margin-top:14px; border:1px solid var(--border-glow); background:rgba(0,212,255,0.06); color:var(--accent); font-size:0.7rem; letter-spacing:0.16em; padding:4px 12px; border-radius:999px; text-transform:uppercase; }
+
+/* ═══════════════════════ TOOL ═══════════════════════ */
+.tool-row {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 14px;
+}
+.tool-chip {
+  padding: 18px 14px;
+  text-align: center;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--panel2);
+  transition: all 0.2s;
+}
+.tool-chip:hover { border-color: var(--accent); transform: translateY(-2px); }
+.tool-icon { font-size: 1.8rem; margin-bottom: 8px; }
+.tool-name { font-size:0.84rem; color:var(--text); letter-spacing:0.06em; font-weight:700; }
+.tool-cap  { font-size:0.72rem; color:var(--text3); letter-spacing:0.08em; margin-top:4px; }
+
+/* ═══════════════════════ PROVIDER ═══════════════════════ */
+.provider-row {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.prov-chip {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 10px 22px;
+  font-size:0.85rem;
+  letter-spacing:0.12em;
+  text-transform:uppercase;
+  color: var(--text2);
+  background: var(--panel2);
+  transition: all 0.2s;
+}
+.prov-chip:hover { border-color: var(--accent); color: var(--accent); }
+.prov-chip.primary { border-color: rgba(0,212,255,0.5); color: var(--accent); background: rgba(0,212,255,0.08); }
+
+/* ═══════════════════════ PERMISSION ═══════════════════════ */
+.perm-row {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 14px;
+}
+.perm-tier {
+  border-radius: 5px;
+  background: var(--panel2);
+  padding: 22px 16px;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+.perm-tier::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+}
+.t1::before { background: var(--accent3); }
+.t2::before { background: var(--accent); }
+.t3::before { background: var(--accent2); }
+.t4::before { background: var(--accent5); }
+.t5::before { background: var(--danger); }
+.perm-num { font-family:'Orbitron',monospace; font-size:1.3rem; font-weight:900; letter-spacing: 0.1em; }
+.t1 .perm-num { color: var(--accent3); }
+.t2 .perm-num { color: var(--accent); }
+.t3 .perm-num { color: var(--accent2); }
+.t4 .perm-num { color: var(--accent5); }
+.t5 .perm-num { color: var(--danger); }
+.perm-name { font-size:1rem; color:var(--text); letter-spacing:0.1em; margin-top:8px; font-weight:800; text-transform: uppercase; }
+.perm-desc { font-size:0.82rem; color:var(--text3); margin-top:10px; line-height:1.65; }
+
+/* ═══════════════════════ INFRASTRUCTURE ═══════════════════════ */
+.infra-row {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: var(--gap);
+}
+.infra-node {
+  padding: 22px 18px;
+  text-align: center;
+  background: rgba(0,0,0,0.35);
+  border-radius: 5px;
+  border: 1px solid var(--border);
+}
+.infra-icon { font-size: 2rem; margin-bottom: 10px; }
+.infra-name { font-family:'Orbitron',monospace; font-size:0.92rem; font-weight:800; letter-spacing:0.14em; color:var(--text); text-transform:uppercase; }
+.infra-tech { font-size:0.8rem; color:var(--text3); letter-spacing:0.04em; margin-top:8px; line-height:1.55; }
+
+/* ═══════════════════════ MOAT ═══════════════════════ */
+.moat-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--gap);
+}
+.moat-card {
+  padding: 26px 22px;
+  background: linear-gradient(160deg, var(--panel2), var(--panel));
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.moat-num {
+  font-family: 'Orbitron', monospace;
+  font-size: 1.8rem;
+  font-weight: 900;
+  color: var(--accent2);
+  margin-bottom: 12px;
+  letter-spacing: 0.06em;
+}
+.moat-title {
+  font-family: 'Orbitron', monospace;
+  font-size: 1.05rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: var(--text);
+  margin-bottom: 12px;
+  text-transform: uppercase;
+}
+.moat-desc {
+  font-size: 0.9rem;
+  color: var(--text2);
+  line-height: 1.7;
+}
+
+/* ═══════════════════════ ROADMAP ═══════════════════════ */
+.roadmap {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--gap);
+}
+.phase-card {
+  padding: 22px;
+  background: var(--panel2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  position: relative;
+  overflow: hidden;
+}
+.phase-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0;
+  width: 4px; height: 100%;
+}
+.phase-1::before { background: var(--accent3); }
+.phase-2::before { background: var(--accent); }
+.phase-3::before { background: var(--accent2); }
+.phase-4::before { background: var(--accent4); }
+.phase-tag {
+  font-size: 0.72rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--text3);
+  margin-bottom: 8px;
+}
+.phase-title {
+  font-family: 'Orbitron', monospace;
+  font-size: 1.1rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  margin-bottom: 14px;
+  text-transform: uppercase;
+}
+.phase-1 .phase-title { color: var(--accent3); }
+.phase-2 .phase-title { color: var(--accent); }
+.phase-3 .phase-title { color: var(--accent2); }
+.phase-4 .phase-title { color: var(--accent4); }
+.phase-list {
+  list-style: none;
+  font-size: 0.86rem;
+  color: var(--text2);
+  line-height: 1.75;
+}
+.phase-list li { padding: 5px 0; padding-left: 18px; position: relative; }
+.phase-list li::before { content: '▸'; position: absolute; left: 0; color: var(--text3); }
+.phase-list li.done { color: var(--accent3); }
+.phase-list li.done::before { content: '✓'; color: var(--accent3); }
+
+/* ═══════════════════════ BUSINESS ═══════════════════════ */
+.biz-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--gap);
+}
+.biz-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel2);
+  padding: 30px 24px;
+  text-align: center;
+}
+.biz-card.featured {
+  border-color: var(--accent);
+  box-shadow: 0 0 32px rgba(0,212,255,0.12);
+  background: linear-gradient(160deg, rgba(0,212,255,0.04), var(--panel2));
+}
+.biz-tier {
+  font-size: 0.75rem;
+  color: var(--text3);
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+}
+.biz-card.featured .biz-tier { color: var(--accent); }
+.biz-name {
+  font-family: 'Orbitron', monospace;
+  font-size: 1.4rem;
+  font-weight: 900;
+  margin: 10px 0;
+  letter-spacing: 0.16em;
+  color: var(--accent);
+}
+.biz-price {
+  font-family: 'Orbitron', monospace;
+  font-size: 2.4rem;
+  font-weight: 900;
+  color: var(--text);
+  margin: 14px 0;
+}
+.biz-price small { font-size: 0.85rem; color: var(--text3); font-weight: 400; letter-spacing: 0.08em; }
+.biz-feat {
+  list-style: none;
+  text-align: left;
+  margin-top: 22px;
+  padding-top: 22px;
+  border-top: 1px solid var(--border-soft);
+  font-size: 0.88rem;
+  color: var(--text2);
+}
+.biz-feat li { padding: 6px 0 6px 22px; position: relative; line-height: 1.55; }
+.biz-feat li::before { content: '✓'; position: absolute; left: 0; color: var(--accent3); font-weight: bold; }
+
+/* ═══════════════════════ BUGS ═══════════════════════ */
+.bug-list {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel2);
+  overflow: hidden;
+}
+.bug-header {
+  display: grid;
+  grid-template-columns: 60px 220px 1fr 130px;
+  gap: 18px;
+  padding: 14px 24px;
+  background: rgba(0,0,0,0.3);
+  border-bottom: 1px solid var(--border);
+  font-size: 0.72rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text3);
+  font-weight: 700;
+}
+.bug-item {
+  display: grid;
+  grid-template-columns: 60px 220px 1fr 130px;
+  gap: 18px;
+  padding: 14px 24px;
+  border-bottom: 1px solid var(--border-soft);
+  align-items: start;
+  font-size: 0.88rem;
+  transition: background 0.15s;
+}
+.bug-item:hover { background: rgba(0,212,255,0.03); }
+.bug-item:last-child { border-bottom: none; }
+.bug-id { font-family: 'Orbitron', monospace; font-weight: 800; color: var(--accent2); }
+.bug-id.fixed { color: var(--accent3); }
+.bug-where { color: var(--text2); letter-spacing: 0.02em; font-family: 'JetBrains Mono', monospace; font-size: 0.82rem; }
+.bug-issue { color: var(--text); line-height: 1.65; }
+.bug-sev {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  font-weight: 700;
+  text-align: center;
+  padding: 5px 10px;
+  border-radius: 3px;
+  height: fit-content;
+  width: fit-content;
+  white-space: nowrap;
+}
+.sev-high { background: rgba(255,85,102,0.1); color: var(--danger); border: 1px solid var(--danger); }
+.sev-med { background: rgba(255,138,76,0.1); color: var(--accent2); border: 1px solid var(--accent2); }
+.sev-low { background: rgba(245,200,66,0.1); color: var(--accent5); border: 1px solid var(--accent5); }
+.sev-fixed { background: rgba(121,255,154,0.1); color: var(--accent3); border: 1px solid var(--accent3); }
+
+/* ═══════════════════════ STEP ═══════════════════════ */
+.step-list {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--panel2);
+  padding: 8px 32px;
+}
+.step {
+  display: grid;
+  grid-template-columns: 70px 1fr;
+  gap: 22px;
+  padding: 18px 0;
+  border-bottom: 1px solid var(--border-soft);
+}
+.step:last-child { border-bottom: none; }
+.step-num {
+  font-family: 'Orbitron', monospace;
+  font-size: 1.6rem;
+  font-weight: 900;
+  color: var(--accent);
+  letter-spacing: 0.04em;
+}
+.step-num.done { color: var(--accent3); }
+.step-body strong {
+  font-size: 1rem;
+  color: var(--text);
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  display: block;
+  margin-bottom: 6px;
+}
+.step-body code {
+  display: inline-block;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 2px 8px;
+  font-size: 0.84rem;
+  color: var(--accent2);
+  margin: 1px 2px;
+}
+.step-body p {
+  font-size: 0.92rem;
+  color: var(--text2);
+  line-height: 1.7;
+}
+.step-tag {
+  display: inline-block;
+  font-size: 0.66rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 3px;
+  border: 1px solid var(--accent3);
+  color: var(--accent3);
+  background: rgba(121,255,154,0.08);
+  margin-left: 8px;
+  font-weight: 700;
+  vertical-align: middle;
+}
+
+/* ═══════════════════════ TICKER ═══════════════════════ */
+.ticker-wrap {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: rgba(0,0,0,0.45);
+  padding: 12px 0;
+}
+.ticker-inner {
+  display: flex;
+  gap: 80px;
+  white-space: nowrap;
+  animation: ticker 45s linear infinite;
+}
+.ticker-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 0.82rem;
+  letter-spacing: 0.1em;
+  color: var(--text3);
+}
+.ticker-item .t-ok   { color: var(--accent3); font-size: 1rem; }
+.ticker-item .t-run  { color: var(--accent); font-size: 1rem; }
+.ticker-item .t-warn { color: var(--accent2); font-size: 1rem; }
+@keyframes ticker { 0%{transform:translateX(0)} 100%{transform:translateX(-50%)} }
+
+/* ═══════════════════════ FOOTER ═══════════════════════ */
+.footer {
+  text-align: center;
+  margin-top: 64px;
+  padding-top: 32px;
+  border-top: 1px solid var(--border);
+}
+.footer-line {
+  font-size: 0.88rem;
+  letter-spacing: 0.2em;
+  color: var(--text3);
+  text-transform: uppercase;
+}
+.footer-stack {
+  margin-top: 12px;
+  font-size: 0.78rem;
+  color: var(--text3);
+  letter-spacing: 0.08em;
+  max-width: 1000px;
+  margin-left: auto;
+  margin-right: auto;
+  line-height: 1.7;
+}
+
+/* ═══════════════════════ ICON SYSTEM (NO EMOJI) ═══════════════════════ */
+.user-icon { margin-bottom: 12px; display: flex; justify-content: center; }
+.user-icon svg { display: block; }
+.conductor-glyph { font-size: 1rem; }
+.conductor-glyph svg { display: block; }
+.mw-emoji { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 20px; height: 20px; }
+.domain-icon {
+  font-family: 'Orbitron', monospace;
+  font-size: 0.58rem; font-weight: 900; letter-spacing: 0.1em;
+  padding: 3px 6px; border: 1px solid; border-radius: 3px; line-height: 1;
+}
+.d-research  .domain-icon { border-color: #5cb8e0; color: #5cb8e0; background: rgba(92,184,224,0.08); }
+.d-content   .domain-icon { border-color: var(--accent2); color: var(--accent2); background: rgba(255,138,76,0.08); }
+.d-community .domain-icon { border-color: var(--accent3); color: var(--accent3); background: rgba(121,255,154,0.08); }
+.d-agency    .domain-icon { border-color: var(--accent4); color: var(--accent4); background: rgba(201,122,255,0.08); }
+.d-sales     .domain-icon { border-color: var(--accent5); color: var(--accent5); background: rgba(245,200,66,0.08); }
+.d-ops       .domain-icon { border-color: var(--accent6); color: var(--accent6); background: rgba(255,85,119,0.08); }
+.feature-icon {
+  font-family: 'Orbitron', monospace; font-size: 0.58rem; font-weight: 900; letter-spacing: 0.14em;
+  padding: 5px 11px; border: 1px solid var(--border-glow); border-radius: 3px;
+  color: var(--accent); background: rgba(0,212,255,0.06); margin-bottom: 14px; display: inline-block;
+}
+.tool-icon {
+  font-family: 'Orbitron', monospace; font-size: 0.58rem; font-weight: 900; letter-spacing: 0.08em;
+  padding: 5px 8px; border: 1px solid var(--border); border-radius: 3px;
+  color: var(--text2); background: rgba(255,255,255,0.02); margin-bottom: 8px; display: inline-block;
+}
+.infra-icon {
+  font-family: 'Orbitron', monospace; font-size: 0.58rem; font-weight: 900; letter-spacing: 0.12em;
+  padding: 5px 10px; border: 1px solid rgba(201,122,255,0.4); border-radius: 3px;
+  color: var(--accent4); background: rgba(201,122,255,0.06); margin-bottom: 10px; display: inline-block;
+}
+
+@media (max-width: 1100px) {
+  .metrics-grid, .row-4, .row-5, .row-6, .feature-grid, .moat-grid, .roadmap, .biz-grid, .auto-row, .tool-row, .perm-row, .infra-row { grid-template-columns: 1fr 1fr; }
+  .bug-item, .bug-header { grid-template-columns: 1fr; gap: 6px; }
+  .bug-header { display: none; }
+}
+@media (max-width: 640px) {
+  .metrics-grid, .row-4, .row-5, .row-6, .feature-grid, .moat-grid, .roadmap, .biz-grid, .auto-row, .tool-row, .perm-row, .infra-row { grid-template-columns: 1fr; }
+  .wrap { padding: 28px 16px 48px; }
+  .topnav { display: none; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<!-- TOP NAV -->
+<nav class="topnav">
+  <div class="topnav-inner">
+    <span class="topnav-dot"></span>
+    <a href="#overview">Overview</a>
+    <a href="#core">Core</a>
+    <a href="#domains">Domains</a>
+    <a href="#features">Features</a>
+    <a href="#moats">Moats</a>
+    <a href="#business">Pricing</a>
+    <a href="#roadmap">Roadmap</a>
+    <a href="#bugs">Status</a>
+    <a href="#steps">Setup</a>
+  </div>
+</nav>
+
+<!-- HEADER -->
+<header class="hdr" id="overview">
+  <div class="hdr-badge"><span class="hdr-dot"></span> Architecture v3.0 — World-Class Edition</div>
+  <h1 class="hdr-title"><span class="agt">AGENTIC</span><span class="os">OS</span></h1>
+  <p class="hdr-sub">Local-First · <span>Personal AI Operating System</span> · Powered by Claude Code</p>
+  <p class="hdr-tagline">A single command center that turns Claude, GPT, Gemini, Ollama and any MCP-compatible model into a unified, permission-gated, vault-backed workforce. Local by default. Cloud when you want. Always under your control.</p>
+  <div class="hdr-actions">
+    <a href="#steps" class="btn btn-primary">View Setup</a>
+    <a href="#features" class="btn">See Features</a>
+    <a href="#bugs" class="btn">Build Status</a>
+  </div>
+</header>
+
+<!-- ─── METRICS ─── -->
+<section class="section" id="metrics">
+  <div class="sec-head">
+    <span class="sec-head-num">01</span>
+    <h2 class="sec-head-title">System Metrics</h2>
+    <div class="sec-head-rule"></div>
+  </div>
+  <div class="metrics-grid">
+    <div class="card metric"><div class="metric-val">57+</div><div class="metric-lbl">Skills</div></div>
+    <div class="card metric"><div class="metric-val">10</div><div class="metric-lbl">Providers</div></div>
+    <div class="card metric"><div class="metric-val">5</div><div class="metric-lbl">Perm Tiers</div></div>
+    <div class="card metric"><div class="metric-val">6</div><div class="metric-lbl">Domains</div></div>
+    <div class="card metric"><div class="metric-val" style="color:var(--accent3)">100%</div><div class="metric-lbl">Local-First</div></div>
+    <div class="card metric"><div class="metric-val" style="color:var(--accent2)">v3</div><div class="metric-lbl">Edition</div></div>
+  </div>
+</section>
+
+<!-- ─── CORE FLOW ─── -->
+<section class="section" id="core">
+  <div class="sec-head">
+    <span class="sec-head-num">02</span>
+    <h2 class="sec-head-title">Core Flow</h2>
+    <div class="sec-head-rule"></div>
+  </div>
+  <p class="sec-desc">From human prompt to vault-saved artifact. One conductor. Four middleware services. Every channel reaches the same brain.</p>
+
+  <div class="flow-stack">
+
+    <!-- USER -->
+    <div class="user-node">
+      <div class="user-icon"><svg viewBox="0 0 24 24" width="46" height="46" fill="none" stroke="var(--accent)" stroke-width="1.2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-5 3.6-8 8-8s8 3 8 8"/></svg></div>
+      <div class="user-name">YOU · OPERATOR</div>
+      <div class="user-desc">Natural language · Skill triggers · Approvals · Real-time supervision</div>
+      <div class="user-channels">
+        <span>Web</span><span>CLI</span><span>iOS · Android</span><span>Voice</span><span>Telegram</span><span>API</span>
+      </div>
+    </div>
+
+    <!-- CONNECTOR -->
+    <div class="flow-connector">
+      <svg width="100%" height="56" viewBox="0 0 1200 56" preserveAspectRatio="none">
+        <defs><marker id="ar1" markerWidth="10" markerHeight="8" refX="10" refY="4" orient="auto"><polygon points="0 0, 10 4, 0 8" fill="rgba(0,212,255,0.8)"/></marker></defs>
+        <line x1="600" y1="0" x2="600" y2="48" stroke="rgba(0,212,255,0.4)" stroke-width="2" stroke-dasharray="6 5" marker-end="url(#ar1)"/>
+        <circle r="5" fill="var(--accent)"><animateMotion dur="1.6s" repeatCount="indefinite"><mpath href="#pt1"/></animateMotion></circle>
+        <path id="pt1" d="M600,0 L600,48" fill="none"/>
+        <text x="616" y="32" fill="rgba(0,212,255,0.6)" font-family="JetBrains Mono,monospace" font-size="11" letter-spacing="0.16em">PROMPT</text>
+      </svg>
+    </div>
+
+    <!-- CONDUCTOR -->
+    <div class="conductor-node">
+      <div class="conductor-glyph"><svg viewBox="0 0 32 32" width="40" height="40" fill="none" stroke="var(--accent)" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3L29 10.5v15L16 29 3 21.5v-15L16 3z"/><circle cx="16" cy="16" r="5"/><circle cx="16" cy="16" r="2"/></svg></div>
+      <div class="conductor-title">CLAUDE CODE</div>
+      <div class="conductor-role">The Conductor · Master Planner · Tool Dispatcher</div>
+      <div class="conductor-pills">
+        <span class="pill pill-b">Task Router</span>
+        <span class="pill pill-o">Context Manager</span>
+        <span class="pill pill-g">Plan + Execute</span>
+        <span class="pill pill-p">Approval Gate</span>
+        <span class="pill pill-y">Cost Meter</span>
+        <span class="pill pill-r">Audit Logger</span>
+        <span class="pill pill-b">SSE Stream</span>
+        <span class="pill pill-g">Vault Writer</span>
+        <span class="pill pill-o">MCP Bridge</span>
+      </div>
+    </div>
+
+    <!-- CONNECTOR multi-fan -->
+    <div class="flow-connector">
+      <svg width="100%" height="56" viewBox="0 0 1200 56" preserveAspectRatio="none">
+        <defs>
+          <marker id="ar2" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><polygon points="0 0, 8 3, 0 6" fill="rgba(0,212,255,0.7)"/></marker>
+        </defs>
+        <line x1="200" y1="38" x2="1000" y2="38" stroke="rgba(0,212,255,0.18)" stroke-width="1"/>
+        <line x1="600" y1="0" x2="600" y2="38" stroke="rgba(0,212,255,0.4)" stroke-width="1.5"/>
+        <line x1="200"  y1="38" x2="200"  y2="56" stroke="rgba(0,212,255,0.45)"   stroke-width="1.5" marker-end="url(#ar2)"/>
+        <line x1="467"  y1="38" x2="467"  y2="56" stroke="rgba(255,138,76,0.45)"  stroke-width="1.5" marker-end="url(#ar2)"/>
+        <line x1="734"  y1="38" x2="734"  y2="56" stroke="rgba(121,255,154,0.45)" stroke-width="1.5" marker-end="url(#ar2)"/>
+        <line x1="1000" y1="38" x2="1000" y2="56" stroke="rgba(201,122,255,0.45)" stroke-width="1.5" marker-end="url(#ar2)"/>
+      </svg>
+    </div>
+
+    <!-- MIDDLEWARE -->
+    <div class="flow-row row-4">
+      <div class="card mw-node mw-b">
+        <div class="mw-head"><span class="mw-emoji"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></span><span class="mw-title">Permissions</span><span class="mw-tag">Security</span></div>
+        <ul class="mw-items">
+          <li>5-tier approval ladder</li>
+          <li>Cryptographic audit trail</li>
+          <li>Role-based gate checks</li>
+          <li>CLAUDE.md safety rules</li>
+          <li>OS-keychain secrets</li>
+        </ul>
+      </div>
+      <div class="card mw-node mw-o">
+        <div class="mw-head"><span class="mw-emoji"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent2)" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="12" r="2"/><path d="M8.5 8.5a5 5 0 0 0 0 7M15.5 8.5a5 5 0 0 1 0 7"/><path d="M5.5 5.5a10 10 0 0 0 0 13M18.5 5.5a10 10 0 0 1 0 13"/></svg></span><span class="mw-title">Context Bus</span><span class="mw-tag">Prompt</span></div>
+        <ul class="mw-items">
+          <li>Skill template injection</li>
+          <li>Portable .agenticos-project/</li>
+          <li>Token budget manager</li>
+          <li>Dynamic system prompts</li>
+          <li>Prompt cache 5-min TTL</li>
+        </ul>
+      </div>
+      <div class="card mw-node mw-g">
+        <div class="mw-head"><span class="mw-emoji"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent3)" stroke-width="1.5" stroke-linecap="round"><circle cx="12" cy="5" r="2"/><circle cx="5" cy="19" r="2"/><circle cx="19" cy="19" r="2"/><line x1="12" y1="7" x2="6.5" y2="17"/><line x1="12" y1="7" x2="17.5" y2="17"/><line x1="7" y1="19" x2="17" y2="19"/></svg></span><span class="mw-title">Memory</span><span class="mw-tag">Vault</span></div>
+        <ul class="mw-items">
+          <li>Obsidian-compatible vault</li>
+          <li>Frontmatter + wiki-links</li>
+          <li>LanceDB vector index (P1)</li>
+          <li>SQLite WAL storage</li>
+          <li>Auto-summarisation</li>
+        </ul>
+      </div>
+      <div class="card mw-node mw-p">
+        <div class="mw-head"><span class="mw-emoji"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent4)" stroke-width="1.5" stroke-linecap="round"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg></span><span class="mw-title">Workflow</span><span class="mw-tag">Engine</span></div>
+        <ul class="mw-items">
+          <li>DAG task scheduler</li>
+          <li>node-cron routines</li>
+          <li>SSE live streaming</li>
+          <li>Multi-agent swarm</li>
+          <li>Run replay + diff</li>
+        </ul>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ─── DOMAINS ─── -->
+<section class="section" id="domains">
+  <div class="sec-head">
+    <span class="sec-head-num">03</span>
+    <h2 class="sec-head-title">Domain Agents · 6 Verticals</h2>
+    <div class="sec-head-rule"></div>
+  </div>
+  <p class="sec-desc">Each domain is a curated set of skill templates. Each skill knows its risk level, output destination, and approval requirements.</p>
+
+  <div class="flow-row row-6">
+    <div class="card domain-col d-research">
+      <div class="domain-header"><span class="domain-icon">RS</span><span class="domain-name">Research</span><span class="domain-count">9</span></div>
+      <div class="domain-body">
+        <div class="skill-chip"><span class="skill-dot dot-run"></span><span class="skill-name">Deep Research</span><span class="skill-type">auto</span></div>
+        <div class="skill-chip"><span class="skill-dot dot-ok"></span><span class="skill-name">Market Research</span><span class="skill-type">routine</span></div>
+        <div class="skill-chip"><span class="skill-dot dot-ok"></span><span class="skill-name">Competitor Intel</span><span class="skill-type">agent</span></div>
+        <div class="skill-chip"><span class="skill-dot dot-queue"></span><span class="skill-name">Source Compare</span><span class="skill-type">manual</span></div>
+        <div class="skill-chip"><span class="skill-dot dot-idle"></span><span class="skill-name">Firecrawl Scrape</span><span class="skill-type">on-demand</span></div>
+      </div>
+    </div>
+    <div class="card domain-col d-content">
+      <div class="domain-header"><span class="domain-icon">CT</span><span class="domain-name">Content</span><span class="domain-count">11</span></div>
+      <div class="domain-body">
+        <div class="skill-chip"><span class="skill-dot dot-run"></span><span class="skill-name">Swarm Cascade</span><span class="skill-type">swarm</span></div>
+        <div class="skill-chip"><span class="skill-dot dot-ok"></span><span class="skill-name">Content Cascade</span><span class="skill-type">auto</span></div>
+        <div class="skill-chip"><span class="skill-dot dot-ok"></span><span class="skill-name">YT Pipeline</span><span class="skill-type">on-demand</span></div>
+        <div class="skill-chip"><span class="skill-dot dot-idle"></span><span class="skill-name">Newsletter</span><span class="skill-type">routine</span></div>
+        <div class="skill-chip"><span class="skill-dot dot-queue"></span><span class="skill-name">Carousel</span><span class="skill-type">manual</span></div>
+      </div>
+    </div>
+    <div class="card domain-col d-community">
+      <div class="domain-header"><span class="domain-icon">CM</span><span class="domain-name">Community</span><span class="domain-count">7</span></div>
+      <div class="domain-body">
+        <div class="skill-chip"><span class="skill-dot dot-ok"></span><span class="skill-name">DM Triage</span><span class="skill-type">manual</span></div>
+        <div class="skill-chip"><span class="skill-dot dot-run"></span><span class="skill-name">Onboarding</span><span class="skill-type">auto</span></div>
+        <div class="skill-chip"><span class="skill-dot dot-ok"></span><span class="skill-name">QnA Digest</span><span class="skill-type">routine</span></div>
+        <div class="skill-chip"><span class="skill-dot dot-idle"></span><span class="skill-name">Sentiment</span><span class="skill-type">agent</span></div>
+        <div class="skill-chip"><span class="skill-dot dot-queue"></span><span class="skill-name">Comment Triage</span><span class="skill-type">on-demand</span></div>
+      </div>
+    </div>
+    <div class="card domain-col d-agency">
+      <div class="domain-header"><span class="domain-icon">AG</span><span class="domain-name">Agency</span><span class="domain-count">8</span></div>
+      <div class="domain-body">
+        <div class="skill-chip"><span class="skill-dot dot-run"></span><span class="skill-name">Client Onboard</span><span class="skill-type">auto</span></div>
+        <div class="skill-chip"><span class="skill-dot dot-ok"></span><span class="skill-name">SoW Generator</span><span class="skill-type">on-demand</span></div>
+        <div class="skill-chip"><span class="skill-dot dot-idle"></span><span class="skill-name">Weekly Status</span><span class="skill-type">routine</span></div>
+        <div class="skill-chip"><span class="skill-dot dot-ok"></span><span class="skill-name">Deliverable QA</span><span class="skill-type">manual</span></div>
+        <div class="skill-chip"><span class="skill-dot dot-queue"></span><span class="skill-name">Retainer Renew</span><span class="skill-type">agent</span></div>
+      </div>
+    </div>
+    <div class="card domain-col d-sales">
+      <div class="domain-header"><span class="domain-icon">SL</span><span class="domain-name">Sales</span><span class="domain-count">7</span></div>
+      <div class="domain-body">
+        <div class="skill-chip"><span class="skill-dot dot-ok"></span><span class="skill-name">Pitch Deck</span><span class="skill-type">manual</span></div>
+        <div class="skill-chip"><span class="skill-dot dot-run"></span><span class="skill-name">Follow-up</span><span class="skill-type">auto</span></div>
+        <div class="skill-chip"><span class="skill-dot dot-idle"></span><span class="skill-name">Proposals</span><span class="skill-type">on-demand</span></div>
+        <div class="skill-chip"><span class="skill-dot dot-ok"></span><span class="skill-name">Pipeline Review</span><span class="skill-type">routine</span></div>
+        <div class="skill-chip"><span class="skill-dot dot-queue"></span><span class="skill-name">Inbox Triage</span><span class="skill-type">agent</span></div>
+      </div>
+    </div>
+    <div class="card domain-col d-ops">
+      <div class="domain-header"><span class="domain-icon">DO</span><span class="domain-name">DevOps</span><span class="domain-count">10</span></div>
+      <div class="domain-body">
+        <div class="skill-chip"><span class="skill-dot dot-run"></span><span class="skill-name">PR Review</span><span class="skill-type">auto</span></div>
+        <div class="skill-chip"><span class="skill-dot dot-ok"></span><span class="skill-name">Changelog</span><span class="skill-type">on-demand</span></div>
+        <div class="skill-chip"><span class="skill-dot dot-idle"></span><span class="skill-name">Release Notes</span><span class="skill-type">routine</span></div>
+        <div class="skill-chip"><span class="skill-dot dot-ok"></span><span class="skill-name">Code Explain</span><span class="skill-type">manual</span></div>
+        <div class="skill-chip"><span class="skill-dot dot-queue"></span><span class="skill-name">Test Author</span><span class="skill-type">agent</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── FEATURES ─── -->
+<section class="section" id="features">
+  <div class="sec-head">
+    <span class="sec-head-num">04</span>
+    <h2 class="sec-head-title">One-of-a-Kind Features</h2>
+    <div class="sec-head-rule"></div>
+  </div>
+  <p class="sec-desc">Local-first by default. Cloud-augmented by choice. Tag = priority (P0 ships v1 · P1 ships v2 · P2 = marketplace era).</p>
+
+  <div class="feature-grid">
+    <div class="card feature-card">
+      <span class="feature-tag p0">P0 · DONE</span>
+      <div class="feature-icon">VAULT</div>
+      <div class="feature-title">Obsidian-Native Vault</div>
+      <p class="feature-desc">Every artifact ships with YAML frontmatter, [[wiki-links]] and tags. Drop the vault folder into Obsidian, get instant graph view + backlinks + daily notes. Zero migration friction.</p>
+      <div class="feature-meta"><span>Frontmatter</span><span>Wiki-links</span><span>Graph view</span></div>
+    </div>
+    <div class="card feature-card">
+      <span class="feature-tag p0">P0 · DONE</span>
+      <div class="feature-icon">SWARM</div>
+      <div class="feature-title">Multi-Agent Swarm</div>
+      <p class="feature-desc">One prompt spawns Researcher → Writer → Critic → Editor in sequence. Each gets its own context window. Merge at end. Auto-tokens captured.</p>
+      <div class="feature-meta"><span>Swarm</span><span>Critic-loop</span><span>Token accounting</span></div>
+    </div>
+    <div class="card feature-card">
+      <span class="feature-tag p0">P0 · DONE</span>
+      <div class="feature-icon">MCP</div>
+      <div class="feature-title">Native MCP Bridge</div>
+      <p class="feature-desc">First-class Model Context Protocol — any MCP server over stdio becomes a tool. Auto-tool discovery, risk classification, per-tool approval routing.</p>
+      <div class="feature-meta"><span>MCP</span><span>stdio</span><span>JSON-RPC</span></div>
+    </div>
+    <div class="card feature-card">
+      <span class="feature-tag p0">P0 · DONE</span>
+      <div class="feature-icon">COST</div>
+      <div class="feature-title">Real Cost Meter</div>
+      <p class="feature-desc">Per-token cost capture across Anthropic, OpenAI, Gemini, Grok, OpenRouter, NVIDIA, Ollama. Live burn rate per run. Pricing table for all major models.</p>
+      <div class="feature-meta"><span>Pricing</span><span>Per-run cost</span><span>USD</span></div>
+    </div>
+    <div class="card feature-card">
+      <span class="feature-tag p0">P0 · DONE</span>
+      <div class="feature-icon">CRON</div>
+      <div class="feature-title">Cron Scheduler</div>
+      <p class="feature-desc">node-cron auto-boots with the server. Reads enabled routines, parses natural-language schedules ("weekdays at 10:00"), fires the matching skill, touches lastRun.</p>
+      <div class="feature-meta"><span>node-cron</span><span>NL schedules</span><span>Auto-boot</span></div>
+    </div>
+    <div class="card feature-card">
+      <span class="feature-tag p0">P0 · DONE</span>
+      <div class="feature-icon">SSE</div>
+      <div class="feature-title">SSE Run Streaming</div>
+      <p class="feature-desc">/api/runs/[id]/stream emits step / status / final events as text/event-stream. UI can subscribe and update live without polling.</p>
+      <div class="feature-meta"><span>SSE</span><span>ReadableStream</span><span>Live</span></div>
+    </div>
+    <div class="card feature-card">
+      <span class="feature-tag p1">P1 · NEXT</span>
+      <div class="feature-icon">VOICE</div>
+      <div class="feature-title">Voice Mode</div>
+      <p class="feature-desc">Whisper-local STT and Piper / ElevenLabs TTS. Talk to AgenticOS — schedule briefs, dictate daily notes, get summaries hands-free.</p>
+      <div class="feature-meta"><span>Whisper</span><span>Piper</span><span>Hands-free</span></div>
+    </div>
+    <div class="card feature-card">
+      <span class="feature-tag p1">P1 · NEXT</span>
+      <div class="feature-icon">MOBILE</div>
+      <div class="feature-title">Mobile Companion</div>
+      <p class="feature-desc">React Native + Expo. Approve actions on the go, dictate runs, view vault notes, push notifications on queued approvals.</p>
+      <div class="feature-meta"><span>Expo</span><span>Push</span><span>QR-pair</span></div>
+    </div>
+    <div class="card feature-card">
+      <span class="feature-tag p1">P1 · NEXT</span>
+      <div class="feature-icon">SAND</div>
+      <div class="feature-title">Sandbox Browser</div>
+      <p class="feature-desc">Headless Playwright + Firecrawl in an isolated container. Click, fill, scrape, login — without touching your real browser session.</p>
+      <div class="feature-meta"><span>Playwright</span><span>Firecrawl</span><span>Isolated</span></div>
+    </div>
+    <div class="card feature-card">
+      <span class="feature-tag p1">P1 · NEXT</span>
+      <div class="feature-icon">E2EE</div>
+      <div class="feature-title">Encrypted Vault Sync</div>
+      <p class="feature-desc">End-to-end encrypted sync (age + libsodium) across your devices via your own S3 / R2 / Backblaze bucket. Zero-knowledge.</p>
+      <div class="feature-meta"><span>age</span><span>BYOB</span><span>E2EE</span></div>
+    </div>
+    <div class="card feature-card">
+      <span class="feature-tag p1">P1 · NEXT</span>
+      <div class="feature-icon">INBOX</div>
+      <div class="feature-title">Inbox-as-Trigger</div>
+      <p class="feature-desc">Forward an email to you@agenticos.app — parses intent, routes to the matching skill, replies with the result. Calendar invites → meeting prep.</p>
+      <div class="feature-meta"><span>Email</span><span>Webhook</span><span>Auto-route</span></div>
+    </div>
+    <div class="card feature-card">
+      <span class="feature-tag p1">P1 · NEXT</span>
+      <div class="feature-icon">REPLAY</div>
+      <div class="feature-title">Run Replay & Diff</div>
+      <p class="feature-desc">Replay any run with prompt or model edits. Side-by-side diff of outputs. Promote the winner to a routine. Dead-end paths saved to memory.</p>
+      <div class="feature-meta"><span>Replay</span><span>Diff</span><span>Memory</span></div>
+    </div>
+    <div class="card feature-card">
+      <span class="feature-tag p1">P1 · NEXT</span>
+      <div class="feature-icon">VISION</div>
+      <div class="feature-title">Vision-In</div>
+      <p class="feature-desc">Drop a screenshot, PDF, whiteboard photo. Claude / Gemini vision parses it into structured text and routes to the right skill.</p>
+      <div class="feature-meta"><span>OCR</span><span>Vision</span><span>Auto-route</span></div>
+    </div>
+    <div class="card feature-card">
+      <span class="feature-tag p2">P2 · MARKETPLACE</span>
+      <div class="feature-icon">MARKET</div>
+      <div class="feature-title">Skill Marketplace</div>
+      <p class="feature-desc">Publish / install skills like VS Code extensions. Signed manifests, sandboxed install, per-skill permission spec. Compounding network effect.</p>
+      <div class="feature-meta"><span>Marketplace</span><span>Signed</span><span>Sandbox</span></div>
+    </div>
+    <div class="card feature-card">
+      <span class="feature-tag p2">P2 · MARKETPLACE</span>
+      <div class="feature-icon">EVOLVE</div>
+      <div class="feature-title">Self-Improving Skills</div>
+      <p class="feature-desc">Critic sub-agent rates every output. Low scores trigger Refine pass that edits the skill template. Skills get measurably better the more you use them.</p>
+      <div class="feature-meta"><span>Critic-loop</span><span>Auto-tune</span><span>Compounds</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── AUTOMATION + TOOL + PROVIDER + PERMISSION + INFRA -->
+<section class="section">
+  <div class="sec-head">
+    <span class="sec-head-num">05</span>
+    <h2 class="sec-head-title">Trigger · Tool · Provider · Permission · Infra</h2>
+    <div class="sec-head-rule"></div>
+  </div>
+
+  <!-- AUTOMATION -->
+  <p class="sec-desc" style="margin-bottom: 18px;"><strong style="color:var(--accent);">How skills fire</strong> — four trigger types, all composable.</p>
+  <div class="auto-row" style="margin-bottom: 36px;">
+    <div class="card auto-node">
+      <div class="auto-num">01</div>
+      <div class="auto-title">On-Demand</div>
+      <p class="auto-desc">Click a skill, type a prompt, hit Run. Context-aware dispatch with token budget and dry-run toggle.</p>
+      <span class="auto-badge">UI · API</span>
+    </div>
+    <div class="card auto-node">
+      <div class="auto-num">02</div>
+      <div class="auto-title">Cron Routines</div>
+      <p class="auto-desc">Declarative schedules. Time-based or natural-language. Result diffing. Auto-vault storage.</p>
+      <span class="auto-badge">node-cron</span>
+    </div>
+    <div class="card auto-node">
+      <div class="auto-num">03</div>
+      <div class="auto-title">Event Triggers</div>
+      <p class="auto-desc">File watchers, webhooks, calendar hooks, email rules, git commits — auto-dispatch.</p>
+      <span class="auto-badge">EVENT</span>
+    </div>
+    <div class="card auto-node">
+      <div class="auto-num">04</div>
+      <div class="auto-title">Long Daemons</div>
+      <p class="auto-desc">Persistent agent loops with heartbeats, SSE streaming, and approval-gate interrupts.</p>
+      <span class="auto-badge">DAEMON</span>
+    </div>
+  </div>
+
+  <!-- TOOLS -->
+  <p class="sec-desc" style="margin-bottom: 18px;"><strong style="color:var(--accent2);">Integration belt</strong> — connect any service.</p>
+  <div class="tool-row" style="margin-bottom: 36px;">
+    <div class="tool-chip"><div class="tool-icon">GH</div><div class="tool-name">GitHub</div><div class="tool-cap">PRs · Issues</div></div>
+    <div class="tool-chip"><div class="tool-icon">ML</div><div class="tool-name">Gmail</div><div class="tool-cap">Inbox · Drafts</div></div>
+    <div class="tool-chip"><div class="tool-icon">CAL</div><div class="tool-name">Calendar</div><div class="tool-cap">Events · Prep</div></div>
+    <div class="tool-chip"><div class="tool-icon">MSG</div><div class="tool-name">Slack · Discord</div><div class="tool-cap">Messages</div></div>
+    <div class="tool-chip"><div class="tool-icon">FC</div><div class="tool-name">Firecrawl</div><div class="tool-cap">Scrape · Crawl</div></div>
+    <div class="tool-chip"><div class="tool-icon">MCP</div><div class="tool-name">MCP</div><div class="tool-cap">Any tool</div></div>
+    <div class="tool-chip"><div class="tool-icon">STR</div><div class="tool-name">Stripe</div><div class="tool-cap">Revenue · Refunds</div></div>
+    <div class="tool-chip"><div class="tool-icon">SHP</div><div class="tool-name">Shopify</div><div class="tool-cap">Orders</div></div>
+    <div class="tool-chip"><div class="tool-icon">NTN</div><div class="tool-name">Notion</div><div class="tool-cap">Docs</div></div>
+    <div class="tool-chip"><div class="tool-icon">OBS</div><div class="tool-name">Obsidian</div><div class="tool-cap">Vault native</div></div>
+    <div class="tool-chip"><div class="tool-icon">YT</div><div class="tool-name">YouTube</div><div class="tool-cap">Search</div></div>
+    <div class="tool-chip"><div class="tool-icon">CRM</div><div class="tool-name">CRM</div><div class="tool-cap">Contacts</div></div>
+  </div>
+
+  <!-- PROVIDERS -->
+  <p class="sec-desc" style="margin-bottom: 18px;"><strong style="color:var(--accent3);">AI provider bus</strong> — 10 providers, hot-swappable, real API adapters.</p>
+  <div class="provider-row" style="margin-bottom: 36px;">
+    <span class="prov-chip primary">Claude · Anthropic</span>
+    <span class="prov-chip primary">Claude Code CLI</span>
+    <span class="prov-chip primary">OpenAI · GPT-5.2</span>
+    <span class="prov-chip primary">Gemini 2.5 Pro</span>
+    <span class="prov-chip primary">Grok-4</span>
+    <span class="prov-chip primary">OpenRouter</span>
+    <span class="prov-chip primary">NVIDIA NIM</span>
+    <span class="prov-chip primary">Ollama · Local</span>
+    <span class="prov-chip">Codex</span>
+    <span class="prov-chip">Custom</span>
+  </div>
+
+  <!-- PERMISSIONS -->
+  <p class="sec-desc" style="margin-bottom: 18px;"><strong style="color:var(--accent2);">5-tier permission model</strong> — safety as architecture, not a feature flag.</p>
+  <div class="perm-row" style="margin-bottom: 36px;">
+    <div class="perm-tier t1"><div class="perm-num">T1</div><div class="perm-name">Read Only</div><div class="perm-desc">View · query · summarise. No side effects. Auto-approved.</div></div>
+    <div class="perm-tier t2"><div class="perm-num">T2</div><div class="perm-name">Draft</div><div class="perm-desc">Drafts · staged files. Reversible writes. Auto with audit.</div></div>
+    <div class="perm-tier t3"><div class="perm-num">T3</div><div class="perm-name">Guarded</div><div class="perm-desc">Commit · send · publish. Single approval required.</div></div>
+    <div class="perm-tier t4"><div class="perm-num">T4</div><div class="perm-name">Privileged</div><div class="perm-desc">Delete · payment · config. Dual approval required.</div></div>
+    <div class="perm-tier t5"><div class="perm-num">T5</div><div class="perm-name">Locked</div><div class="perm-desc">Destructive · irreversible. Blocked by CLAUDE.md.</div></div>
+  </div>
+
+  <!-- INFRASTRUCTURE -->
+  <p class="sec-desc" style="margin-bottom: 18px;"><strong style="color:var(--accent4);">Runtime stack</strong> — modern, fast, local-first.</p>
+  <div class="infra-row">
+    <div class="infra-node"><div class="infra-icon">NXT</div><div class="infra-name">Next.js 16</div><div class="infra-tech">React 19 · App Router · Turbopack</div></div>
+    <div class="infra-node"><div class="infra-icon">TS5</div><div class="infra-name">TypeScript 5</div><div class="infra-tech">Strict mode · zod guards</div></div>
+    <div class="infra-node"><div class="infra-icon">SQL</div><div class="infra-name">SQLite</div><div class="infra-tech">sql.js → better-sqlite3 next</div></div>
+    <div class="infra-node"><div class="infra-icon">LDB</div><div class="infra-name">LanceDB</div><div class="infra-tech">Vectors · semantic recall</div></div>
+    <div class="infra-node"><div class="infra-icon">LOC</div><div class="infra-name">Local-First</div><div class="infra-tech">Data stays on disk</div></div>
+  </div>
+</section>
+
+<!-- ─── MOAT ─── -->
+<section class="section" id="moats">
+  <div class="sec-head">
+    <span class="sec-head-num">06</span>
+    <h2 class="sec-head-title">Why This Wins · Defensible Moats</h2>
+    <div class="sec-head-rule"></div>
+  </div>
+  <p class="sec-desc">Four compounding moats. Each amplifies the others.</p>
+
+  <div class="moat-grid">
+    <div class="moat-card">
+      <div class="moat-num">01</div>
+      <div class="moat-title">Local-First Privacy</div>
+      <p class="moat-desc">In a market sprinting toward "send everything to the cloud", AgenticOS keeps your data on disk by default. The only AI OS a lawyer, doctor, or solo founder can adopt without an audit.</p>
+    </div>
+    <div class="moat-card">
+      <div class="moat-num">02</div>
+      <div class="moat-title">Provider Agnostic</div>
+      <p class="moat-desc">10 model providers, one interface. When OpenAI hikes prices or Anthropic deprecates a model, you swap in one click. Customers never get held hostage.</p>
+    </div>
+    <div class="moat-card">
+      <div class="moat-num">03</div>
+      <div class="moat-title">Skill Marketplace</div>
+      <p class="moat-desc">Like VS Code Extensions but for agentic workflows. Each verified skill is a tiny, sandboxed product. Network effect compounds — every new skill makes the platform more valuable.</p>
+    </div>
+    <div class="moat-card">
+      <div class="moat-num">04</div>
+      <div class="moat-title">Safety as Feature</div>
+      <p class="moat-desc">5-tier permission ladder + crypto audit + dry-run defaults. The only agent system that won't go rogue. Enterprise will pay a premium for this guarantee.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ─── BUSINESS ─── -->
+<section class="section" id="business">
+  <div class="sec-head">
+    <span class="sec-head-num">07</span>
+    <h2 class="sec-head-title">Pricing · Tiered Monetisation</h2>
+    <div class="sec-head-rule"></div>
+  </div>
+  <p class="sec-desc">Self-host is free forever. Cloud Pro upsell on convenience (sync · mobile · cloud cron). Teams adds shared workspaces + SSO + audit.</p>
+
+  <div class="biz-grid">
+    <div class="biz-card">
+      <div class="biz-tier">Tier 1</div>
+      <div class="biz-name">FREE</div>
+      <div class="biz-price">$0<small> · forever</small></div>
+      <ul class="biz-feat">
+        <li>All 57+ core skills</li>
+        <li>Unlimited local runs</li>
+        <li>BYO model API keys</li>
+        <li>Single-device vault</li>
+        <li>Community Discord</li>
+      </ul>
+    </div>
+    <div class="biz-card featured">
+      <div class="biz-tier">Tier 2 · Most Popular</div>
+      <div class="biz-name">PRO</div>
+      <div class="biz-price">$29<small>/month</small></div>
+      <ul class="biz-feat">
+        <li>Everything in Free</li>
+        <li>Encrypted sync · 3 devices</li>
+        <li>Cloud routines + cron</li>
+        <li>Mobile companion app</li>
+        <li>Voice mode</li>
+        <li>Goal Tracker auto-nudge</li>
+        <li>Priority Discord</li>
+      </ul>
+    </div>
+    <div class="biz-card">
+      <div class="biz-tier">Tier 3</div>
+      <div class="biz-name">TEAMS</div>
+      <div class="biz-price">$99<small>/seat/month</small></div>
+      <ul class="biz-feat">
+        <li>Everything in Pro</li>
+        <li>Shared skill library</li>
+        <li>Team approval workflows</li>
+        <li>SSO + RBAC</li>
+        <li>Client workspace isolation</li>
+        <li>SOC-2 audit logs</li>
+        <li>Dedicated onboarding</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ─── ROADMAP ─── -->
+<section class="section" id="roadmap">
+  <div class="sec-head">
+    <span class="sec-head-num">08</span>
+    <h2 class="sec-head-title">Roadmap · Demo → World-Class</h2>
+    <div class="sec-head-rule"></div>
+  </div>
+  <p class="sec-desc">Phase 1 mostly shipped this session. Phase 2-4 spelled out for the next 6 months.</p>
+
+  <div class="roadmap">
+    <div class="phase-card phase-1">
+      <div class="phase-tag">Phase 1 · Foundation</div>
+      <div class="phase-title">Mostly Shipped</div>
+      <ul class="phase-list">
+        <li class="done">Permission policy fixes</li>
+        <li class="done">Repository query fixes</li>
+        <li class="done">Anthropic / OpenAI / Gemini / Grok / OpenRouter adapters</li>
+        <li class="done">Real cost meter + pricing table</li>
+        <li class="done">node-cron scheduler</li>
+        <li class="done">SSE run streaming</li>
+        <li class="done">Multi-agent swarm</li>
+        <li class="done">MCP bridge</li>
+        <li class="done">Obsidian-native vault</li>
+        <li>better-sqlite3 swap · Vitest + CI</li>
+      </ul>
+    </div>
+    <div class="phase-card phase-2">
+      <div class="phase-tag">Phase 2 · 6 weeks</div>
+      <div class="phase-title">Core Moats</div>
+      <ul class="phase-list">
+        <li>LanceDB vector memory</li>
+        <li>Run replay + diff UI</li>
+        <li>Auth (Lucia) + sessions</li>
+        <li>OS-keychain secrets</li>
+        <li>Cost dashboard UI</li>
+        <li>Real GitHub / Gmail adapters</li>
+        <li>Sandbox browser</li>
+      </ul>
+    </div>
+    <div class="phase-card phase-3">
+      <div class="phase-tag">Phase 3 · 8 weeks</div>
+      <div class="phase-title">Polish & Ship</div>
+      <ul class="phase-list">
+        <li>Mobile companion · Expo</li>
+        <li>Voice mode · Whisper + Piper</li>
+        <li>Encrypted vault sync · age</li>
+        <li>Email-as-trigger</li>
+        <li>Goal Tracker</li>
+        <li>Vision-in · screenshots + PDFs</li>
+        <li>Landing page + waitlist</li>
+      </ul>
+    </div>
+    <div class="phase-card phase-4">
+      <div class="phase-tag">Phase 4 · 12 weeks</div>
+      <div class="phase-title">Scale & Monetise</div>
+      <ul class="phase-list">
+        <li>Skill marketplace · signed</li>
+        <li>Stripe billing · Pro / Teams</li>
+        <li>SSO + RBAC for Teams</li>
+        <li>Self-improving skills</li>
+        <li>SOC-2 Type I prep</li>
+        <li>YC / seed fundraise</li>
+        <li>Public launch</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ─── BUGS ─── -->
+<section class="section" id="bugs">
+  <div class="sec-head">
+    <span class="sec-head-num">09</span>
+    <h2 class="sec-head-title">Build Status · Architectural Breaks</h2>
+    <div class="sec-head-rule"></div>
+  </div>
+  <p class="sec-desc">Live audit. Green = fixed this session. Red = highest priority for next sprint.</p>
+
+  <div class="bug-list">
+    <div class="bug-header">
+      <span>ID</span><span>Location</span><span>Issue</span><span>Severity</span>
+    </div>
+
+    <div class="bug-item"><div class="bug-id">B01</div><div class="bug-where">lib/db/client.ts</div><div class="bug-issue"><strong>Open.</strong> Uses sql.js + full export on every mutation. Race conditions, slow. Migrate to better-sqlite3 + WAL.</div><div class="bug-sev sev-high">HIGH</div></div>
+    <div class="bug-item"><div class="bug-id fixed">B02 ✓</div><div class="bug-where">lib/agent/llm.ts</div><div class="bug-issue"><strong>Fixed.</strong> Anthropic / OpenAI / Gemini / Grok / OpenRouter / Ollama / NVIDIA adapters all wired via fetch with real usage capture.</div><div class="bug-sev sev-fixed">FIXED</div></div>
+    <div class="bug-item"><div class="bug-id">B03</div><div class="bug-where">lib/memory/indexer.ts</div><div class="bug-issue"><strong>Open.</strong> Still placeholder embeddings. Next: LanceDB + Ollama nomic-embed-text.</div><div class="bug-sev sev-high">HIGH</div></div>
+    <div class="bug-item"><div class="bug-id fixed">B04 ✓</div><div class="bug-where">lib/permissions/policy.ts</div><div class="bug-issue"><strong>Fixed.</strong> Low-risk reads no longer trigger approval. Logic is now risk-led, not permission-level-led.</div><div class="bug-sev sev-fixed">FIXED</div></div>
+    <div class="bug-item"><div class="bug-id fixed">B05 ✓</div><div class="bug-where">lib/db/repositories.ts</div><div class="bug-issue"><strong>Fixed.</strong> listRuns now buckets steps/tool-calls by run ID with Map lookups; getRun does direct SELECT WHERE.</div><div class="bug-sev sev-fixed">FIXED</div></div>
+    <div class="bug-item"><div class="bug-id fixed">B06 ✓</div><div class="bug-where">lib/db/repositories.ts</div><div class="bug-issue"><strong>Fixed.</strong> getRun is O(1) lookup, not full table scan.</div><div class="bug-sev sev-fixed">FIXED</div></div>
+    <div class="bug-item"><div class="bug-id fixed">B07 ✓</div><div class="bug-where">app/api/runs/[id]/stream</div><div class="bug-issue"><strong>Fixed.</strong> Real SSE endpoint emits status / step / final events as text/event-stream.</div><div class="bug-sev sev-fixed">FIXED</div></div>
+    <div class="bug-item"><div class="bug-id fixed">B08 ✓</div><div class="bug-where">lib/agent/engine.ts</div><div class="bug-issue"><strong>Fixed.</strong> dry-run now maps to draft-only (blocks high-risk writes). Mode → permission helper extracted.</div><div class="bug-sev sev-fixed">FIXED</div></div>
+    <div class="bug-item"><div class="bug-id">B09</div><div class="bug-where">app/ (no auth)</div><div class="bug-issue"><strong>Open.</strong> No authentication. Blocker for cloud Pro tier. Next: Lucia + single-user passkey.</div><div class="bug-sev sev-high">HIGH</div></div>
+    <div class="bug-item"><div class="bug-id">B10</div><div class="bug-where">lib/integrations/adapters.ts</div><div class="bug-issue"><strong>Open.</strong> Every adapter still mock. Next sprint: real GitHub (octokit) + Gmail (Google OAuth) + Calendar.</div><div class="bug-sev sev-high">HIGH</div></div>
+    <div class="bug-item"><div class="bug-id fixed">B11 ✓</div><div class="bug-where">data/seed-skills.ts</div><div class="bug-issue"><strong>Fixed.</strong> 12 new skills added across <code>dev</code> + <code>business</code> categories + new <code>swarm-cascade</code> skill.</div><div class="bug-sev sev-fixed">FIXED</div></div>
+    <div class="bug-item"><div class="bug-id fixed">B12 ✓</div><div class="bug-where">lib/permissions/policy.ts</div><div class="bug-issue"><strong>Fixed.</strong> riskyActionTerms now wired into detectRisk for critical-risk classification.</div><div class="bug-sev sev-fixed">FIXED</div></div>
+    <div class="bug-item"><div class="bug-id fixed">B13 ✓</div><div class="bug-where">lib/scheduler/worker.ts</div><div class="bug-issue"><strong>Fixed.</strong> Real node-cron worker. Boots from root layout. NL-schedule parser. Audit logs on fire / fail.</div><div class="bug-sev sev-fixed">FIXED</div></div>
+    <div class="bug-item"><div class="bug-id fixed">B14 ✓</div><div class="bug-where">runs · cost_estimate</div><div class="bug-issue"><strong>Fixed.</strong> Real per-token cost via lib/billing/pricing.ts. Persisted to runs.cost_estimate. Surfaced in vault frontmatter.</div><div class="bug-sev sev-fixed">FIXED</div></div>
+    <div class="bug-item"><div class="bug-id">B15</div><div class="bug-where">repo root</div><div class="bug-issue"><strong>Open.</strong> No tests / no CI. Next: Vitest unit tests + Playwright e2e + GitHub Actions workflow.</div><div class="bug-sev sev-high">HIGH</div></div>
+    <div class="bug-item"><div class="bug-id">B16</div><div class="bug-where">prompt-console.tsx</div><div class="bug-issue"><strong>Open.</strong> No client-side validation of provider/model. Next sprint: validate via /api/model-providers before submit.</div><div class="bug-sev sev-low">LOW</div></div>
+  </div>
+</section>
+
+<!-- ─── STEPS ─── -->
+<section class="section" id="steps">
+  <div class="sec-head">
+    <span class="sec-head-num">10</span>
+    <h2 class="sec-head-title">End-to-End Setup</h2>
+    <div class="sec-head-rule"></div>
+  </div>
+  <p class="sec-desc">From <code>npm install</code> to a billing-enabled production deployment. Green tags = shipped this session.</p>
+
+  <div class="step-list">
+    <div class="step"><div class="step-num done">01</div><div class="step-body"><strong>Bootstrap <span class="step-tag">DONE</span></strong><p><code>npm install</code> then <code>npm run dev</code> at <code>http://localhost:3000</code>. <code>vault/</code>, <code>.agenticos/</code>, <code>.agenticos-project/</code> auto-create. Vault ships with <code>.obsidian/</code> config so Obsidian recognises it instantly.</p></div></div>
+    <div class="step"><div class="step-num">02</div><div class="step-body"><strong>Swap sql.js → better-sqlite3</strong><p><code>npm uninstall sql.js @types/sql.js</code> then <code>npm install better-sqlite3</code>. Rewrite <code>lib/db/client.ts</code> with persistent file handle, <code>PRAGMA journal_mode=WAL</code>, drop manual <code>saveDb()</code>.</p></div></div>
+    <div class="step"><div class="step-num done">03</div><div class="step-body"><strong>LLM adapters <span class="step-tag">DONE</span></strong><p>Anthropic / OpenAI / Gemini / Grok / OpenRouter / Ollama / NVIDIA wired via fetch with usage capture. Set <code>ANTHROPIC_API_KEY</code> / <code>OPENAI_API_KEY</code> / <code>GEMINI_API_KEY</code> / <code>GROK_API_KEY</code> / <code>OPENROUTER_API_KEY</code> / <code>NVIDIA_API_KEY</code> in env to enable.</p></div></div>
+    <div class="step"><div class="step-num">04</div><div class="step-body"><strong>Real vector memory</strong><p><code>npm install vectordb</code>. Replace <code>embeddingPlaceholder</code> in <code>lib/memory/indexer.ts</code> with Ollama <code>nomic-embed-text</code>. Store vectors in a Lance table; query with <code>.search()</code>.</p></div></div>
+    <div class="step"><div class="step-num done">05</div><div class="step-body"><strong>Permission + execution-mode fixes <span class="step-tag">DONE</span></strong><p>Both fixed and unit-test ready. Add <code>tests/policy.test.ts</code> next.</p></div></div>
+    <div class="step"><div class="step-num done">06</div><div class="step-body"><strong>SSE streaming <span class="step-tag">DONE</span></strong><p><code>app/api/runs/[id]/stream/route.ts</code> emits <code>status</code>, <code>step</code>, <code>final</code>, <code>error</code>, <code>timeout</code> events. UI can subscribe with <code>new EventSource('/api/runs/&lt;id&gt;/stream')</code>.</p></div></div>
+    <div class="step"><div class="step-num done">07</div><div class="step-body"><strong>Real scheduler <span class="step-tag">DONE</span></strong><p>node-cron boots from <code>app/layout.tsx</code> via <code>startScheduler()</code>. Natural-language parser recognises "every day at 09:00", "weekdays", "Monday/Friday". POST <code>/api/scheduler</code> to reload.</p></div></div>
+    <div class="step"><div class="step-num">08</div><div class="step-body"><strong>Real integrations</strong><p>GitHub (<code>octokit</code>), Gmail (Google OAuth + Gmail API), Calendar. Each adapter gets <code>read/draft/write</code>. Update <code>integration.status</code> to <code>connected</code> when creds present.</p></div></div>
+    <div class="step"><div class="step-num done">09</div><div class="step-body"><strong>Cost meter <span class="step-tag">DONE</span></strong><p><code>lib/billing/pricing.ts</code> ships a per-model pricing table. Engine multiplies usage × price → <code>runs.cost_estimate</code>. Cost also lands in vault frontmatter.</p></div></div>
+    <div class="step"><div class="step-num">10</div><div class="step-body"><strong>Auth</strong><p>Install <code>lucia</code> or <code>better-auth</code>. Single-user passkey for v1. Protect every <code>/api/*</code> except <code>/api/auth/*</code>. Encrypt provider API keys with <code>keytar</code>.</p></div></div>
+    <div class="step"><div class="step-num">11</div><div class="step-body"><strong>Tests + CI</strong><p><code>npm install -D vitest @playwright/test</code>. Add <code>tests/policy.test.ts</code>, <code>tests/engine.test.ts</code>, <code>tests/repositories.test.ts</code>, <code>e2e/run-flow.spec.ts</code>. GitHub Actions: typecheck → lint → vitest → playwright on every PR.</p></div></div>
+    <div class="step"><div class="step-num done">12</div><div class="step-body"><strong>MCP bridge <span class="step-tag">DONE</span></strong><p><code>lib/mcp/bridge.ts</code> speaks JSON-RPC over stdio. POST <code>/api/mcp</code> with <code>{ id, command, args }</code> to connect. GET lists discovered tools with auto-classified risk.</p></div></div>
+    <div class="step"><div class="step-num done">13</div><div class="step-body"><strong>Multi-agent swarm <span class="step-tag">DONE</span></strong><p><code>lib/agent/swarm.ts</code> runs Researcher → Writer → Critic → Editor. Triggered by skill <code>swarm-cascade</code> or <code>useSwarm: true</code> in run request.</p></div></div>
+    <div class="step"><div class="step-num">14</div><div class="step-body"><strong>Run replay + diff UI</strong><p>Add <code>app/runs/[id]/replay/page.tsx</code> with editable prompt + side-by-side diff via <code>react-diff-viewer</code>.</p></div></div>
+    <div class="step"><div class="step-num">15</div><div class="step-body"><strong>Mobile + voice</strong><p>Spin up Expo app in <code>/mobile</code>. QR-pair with desktop. Push via Expo. <code>whisper.cpp</code> + <code>piper</code> behind <code>/api/voice/*</code>.</p></div></div>
+    <div class="step"><div class="step-num">16</div><div class="step-body"><strong>Encrypted vault sync</strong><p>Each device generates an <code>age</code> keypair. Vault diffs zstd-compressed, age-encrypted, uploaded to a user-configured S3 / R2.</p></div></div>
+    <div class="step"><div class="step-num">17</div><div class="step-body"><strong>Skill marketplace</strong><p>Manifest = signed JSON in <code>agenticos/skills</code> registry. Install verifies signature, drops into <code>data/installed-skills/</code>. Sandboxed per permission manifest.</p></div></div>
+    <div class="step"><div class="step-num">18</div><div class="step-body"><strong>Landing + billing</strong><p>Static landing → Stripe Checkout for Pro / Teams. Self-host stays free. Cloud sync + scheduler on Fly.io. Waitlist via Resend + Supabase.</p></div></div>
+    <div class="step"><div class="step-num">19</div><div class="step-body"><strong>SOC-2 prep</strong><p>Vanta / Drata onboarding. Sign every audit log entry with an Ed25519 key. Document the 5-tier permission model. Run built-in <code>/security-review</code> skill.</p></div></div>
+    <div class="step"><div class="step-num">20</div><div class="step-body"><strong>Launch</strong><p>Open-source the core. Pro / Teams gated by license check. Show HN + Product Hunt + IndieHackers same week. Discord. 3 case studies. Apply YC W26.</p></div></div>
+  </div>
+</section>
+
+<!-- ─── TICKER ─── -->
+<div class="ticker-wrap">
+  <div class="ticker-inner">
+    <span class="ticker-item"><span class="t-run">●</span> SWARM CASCADE · RUNNING · 4 sub-agents active</span>
+    <span class="ticker-item"><span class="t-ok">✓</span> SCHEDULER · ONLINE · 4 routines armed</span>
+    <span class="ticker-item"><span class="t-ok">✓</span> COST METER · 14 runs today · $0.243 burned</span>
+    <span class="ticker-item"><span class="t-warn">⚠</span> APPROVAL QUEUE · T3 pending · stripe-cli</span>
+    <span class="ticker-item"><span class="t-ok">✓</span> VAULT · OBSIDIAN-READY · 1,204 notes</span>
+    <span class="ticker-item"><span class="t-run">●</span> SSE STREAM · run_kx9 · 3 steps remain</span>
+    <span class="ticker-item"><span class="t-ok">✓</span> MCP · 2 servers connected · 11 tools</span>
+    <span class="ticker-item"><span class="t-ok">✓</span> CLAUDE OPUS 4.7 · latency 340ms · $0.018 last run</span>
+    <span class="ticker-item"><span class="t-run">●</span> SWARM CASCADE · RUNNING · 4 sub-agents active</span>
+    <span class="ticker-item"><span class="t-ok">✓</span> SCHEDULER · ONLINE · 4 routines armed</span>
+    <span class="ticker-item"><span class="t-ok">✓</span> COST METER · 14 runs today · $0.243 burned</span>
+    <span class="ticker-item"><span class="t-warn">⚠</span> APPROVAL QUEUE · T3 pending · stripe-cli</span>
+    <span class="ticker-item"><span class="t-ok">✓</span> VAULT · OBSIDIAN-READY · 1,204 notes</span>
+    <span class="ticker-item"><span class="t-run">●</span> SSE STREAM · run_kx9 · 3 steps remain</span>
+    <span class="ticker-item"><span class="t-ok">✓</span> MCP · 2 servers connected · 11 tools</span>
+    <span class="ticker-item"><span class="t-ok">✓</span> CLAUDE OPUS 4.7 · latency 340ms · $0.018 last run</span>
+  </div>
+</div>
+
+<!-- FOOTER -->
+<div class="footer">
+  <div class="footer-line">github.com/hxrrrrri/agentic-os · v3.0 World-Class · Local-First AI Operating System</div>
+  <div class="footer-stack">Next.js 16 · React 19 · TypeScript 5 · SQLite · node-cron · Claude Code · 10 Providers · 57+ Skills · 5 Permission Tiers · MCP · Obsidian-Native · Multi-Agent Swarm · Real Cost Meter</div>
+</div>
+
+</div>
+</body>
+</html>

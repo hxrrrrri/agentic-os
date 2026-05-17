@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusDot } from "@/components/ui/status-dot";
 import { MarkdownOutput } from "@/components/ui/markdown-output";
+import { RunPoller } from "@/components/runs/run-poller";
 import { getRun, getRunPlan } from "@/lib/db/repositories";
 import { formatTime } from "@/lib/utils";
 
@@ -14,8 +15,11 @@ export default async function RunDetailPage({ params }: { params: Promise<{ id: 
   const { id } = await params;
   const [run, plan] = await Promise.all([getRun(id), getRunPlan(id)]);
   if (!run) notFound();
+  const isProcessing = !["completed", "failed", "cancelled"].includes(run.status);
+
   return (
     <div className="space-y-4">
+      {isProcessing && <RunPoller runId={run.id} />}
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div>
           <div className="terminal-label">Run Detail</div>

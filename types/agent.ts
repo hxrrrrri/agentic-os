@@ -30,6 +30,8 @@ export interface Workflow {
 export type ModelProvider =
   | "claude-code"
   | "codex"
+  | "copilot-cli"
+  | "gemini-cli"
   | "ollama"
   | "openai"
   | "openrouter"
@@ -52,7 +54,12 @@ export interface ModelEndpoint {
   requiresApiKey?: boolean;
 }
 
+export type ThinkingLevel = "off" | "think" | "think-hard" | "think-harder" | "ultrathink";
+export type ReasoningEffort = "minimal" | "low" | "medium" | "high" | "xhigh";
+
 export interface SelectedModelProfile {
   providerId: string;
   model: string;
+  thinking?: ThinkingLevel;
+  reasoningEffort?: ReasoningEffort;
 }

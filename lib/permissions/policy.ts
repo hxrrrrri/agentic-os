@@ -15,19 +15,22 @@ export const riskyActionTerms = [
   "secret",
   "install",
   "api write",
-];
+] as const;
 
-export function requiresApproval(riskLevel: RiskLevel, permissionLevel: PermissionLevel = "approval-required") {
+export function requiresApproval(riskLevel: RiskLevel, permissionLevel: PermissionLevel = "approval-required"): boolean {
   if (permissionLevel === "disabled") return true;
-  if (permissionLevel === "auto-execute-allowed" && rank[riskLevel] <= rank.medium) return false;
-  if (permissionLevel === "read-only" && rank[riskLevel] <= rank.low) return false;
-  if (permissionLevel === "draft-only" && rank[riskLevel] <= rank.medium) return false;
-  return rank[riskLevel] >= rank.medium || permissionLevel === "approval-required";
+  if (permissionLevel === "read-only") return rank[riskLevel] >= rank.medium;
+  if (permissionLevel === "draft-only") return rank[riskLevel] >= rank.high;
+  if (permissionLevel === "auto-execute-allowed") return rank[riskLevel] >= rank.high;
+  return rank[riskLevel] >= rank.medium;
 }
 
 export function detectRisk(action: string): RiskLevel {
   const lower = action.toLowerCase();
-  if (["charge", "refund", "secret", "delete"].some((term) => lower.includes(term))) return "critical";
+  if (riskyActionTerms.some((term) => lower.includes(term))) {
+    if (["charge", "refund", "secret", "delete", "modify production"].some((t) => lower.includes(t))) return "critical";
+    return "high";
+  }
   if (["push", "publish", "send", "shell", "install"].some((term) => lower.includes(term))) return "high";
   if (["draft", "move", "update", "create"].some((term) => lower.includes(term))) return "medium";
   return "low";

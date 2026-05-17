@@ -7,10 +7,16 @@ import { MetricCard } from "@/components/dashboard/metric-card";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { listIntegrations, listRuns } from "@/lib/db/repositories";
 import { usageMetrics, buildActivitySeries, lastSevenDays } from "@/lib/mock/metrics";
+import { listModelProviders } from "@/lib/agent/providers";
 import { listSkills } from "@/lib/skills/registry";
 import { getRecentVaultFiles } from "@/lib/vault/service";
-
 export const dynamic = "force-dynamic";
+
+function compact(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2)}M`.replace(/\.00M$/, "M");
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`.replace(/\.0K$/, "K");
+  return n.toLocaleString("en-US");
+}
 
 export default async function DashboardPage() {
   const [runs, integrations, recentFiles] = await Promise.all([listRuns(), listIntegrations(), getRecentVaultFiles()]);
@@ -18,6 +24,7 @@ export default async function DashboardPage() {
   const activity = buildActivitySeries(runs);
   const weekly = lastSevenDays(runs);
   const skills = listSkills();
+  const providers = listModelProviders();
   const totalRuns = runs.length;
   const last30Count = activity.reduce((sum, point) => sum + point.daily, 0);
 
@@ -26,14 +33,14 @@ export default async function DashboardPage() {
       <div className="grid gap-3 md:grid-cols-3">
         <MetricCard
           label="5-hour window"
-          primary={`${(metrics.fiveHour.used / 1000).toFixed(1)}M / ${(metrics.fiveHour.max / 1000).toFixed(1)}M`}
+          primary={`${compact(metrics.fiveHour.used)} / ${compact(metrics.fiveHour.max)}`}
           secondary={`${metrics.fiveHour.sessions} sessions`}
           value={metrics.fiveHour.used}
           max={metrics.fiveHour.max}
         />
         <MetricCard
           label="Weekly window"
-          primary={`${metrics.weekly.used.toFixed(1)}M / ${(metrics.weekly.max / 20).toFixed(1)}M`}
+          primary={`${compact(metrics.weekly.used)}m / ${compact(metrics.weekly.max)}m`}
           secondary={`${metrics.weekly.sessions} sessions`}
           value={metrics.weekly.used}
           max={metrics.weekly.max}
@@ -62,7 +69,7 @@ export default async function DashboardPage() {
       <div className="grid gap-4 pt-5 xl:grid-cols-[1fr_274px]">
         <div className="min-w-0 space-y-8">
           <Suspense fallback={<div className="terminal-panel p-4 text-sm text-[#a8a29a]">Loading console...</div>}>
-            <PromptConsole skills={skills} />
+            <PromptConsole skills={skills} providers={providers} />
           </Suspense>
         </div>
         <DashboardSidebar runs={runs} weekly={weekly} recentFiles={recentFiles} />

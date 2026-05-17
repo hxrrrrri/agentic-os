@@ -153,6 +153,29 @@ async function initializeDb(database: Database) {
       risk_level TEXT NOT NULL,
       result TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS vault_nodes (
+      path TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      folder TEXT NOT NULL DEFAULT '',
+      word_count INTEGER NOT NULL DEFAULT 0,
+      link_count INTEGER NOT NULL DEFAULT 0,
+      backlink_count INTEGER NOT NULL DEFAULT 0,
+      last_indexed TEXT NOT NULL DEFAULT '',
+      file_exists INTEGER NOT NULL DEFAULT 1
+    );
+
+    CREATE TABLE IF NOT EXISTS vault_links (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      source TEXT NOT NULL,
+      target TEXT NOT NULL,
+      resolved_path TEXT,
+      created_at TEXT NOT NULL,
+      UNIQUE(source, target)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_vault_links_source ON vault_links(source);
+    CREATE INDEX IF NOT EXISTS idx_vault_links_target ON vault_links(target);
   `);
 
   const integrationCount = database.exec("SELECT COUNT(*) AS count FROM integrations")[0]?.values[0]?.[0] as number | undefined;
@@ -161,6 +184,24 @@ async function initializeDb(database: Database) {
       run(
         database,
         `INSERT INTO integrations (id, name, status, mode, description, actions_json, last_used, enabled)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          integration.id,
+          integration.name,
+          integration.status,
+          integration.mode,
+          integration.description,
+          JSON.stringify(integration.actions),
+          integration.lastUsed ?? null,
+          integration.enabled ? 1 : 0,
+        ],
+      ),
+    );
+  } else {
+    seedIntegrations.forEach((integration) =>
+      run(
+        database,
+        `INSERT OR IGNORE INTO integrations (id, name, status, mode, description, actions_json, last_used, enabled)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           integration.id,

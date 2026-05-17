@@ -1,4 +1,5 @@
 import { getDb, rows, saveDb } from "@/lib/db/client";
+import { agenticosConfig } from "@/agenticos.config";
 import { createId, nowIso } from "@/lib/utils";
 import type { AgentPlan, ApprovalRequest, AuditLog, Integration, MemoryItem, Routine, Run, RunStep, ToolCall } from "@/types";
 
@@ -27,6 +28,31 @@ function parseJson<T>(value: string | undefined | null, fallback: T): T {
   } catch {
     return fallback;
   }
+}
+
+function applyRuntimeIntegrationState(integration: Integration): Integration {
+  const env = process.env;
+  const configured: Record<string, boolean> = {
+    github: Boolean(env.GITHUB_TOKEN),
+    gmail: Boolean(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET && env.GOOGLE_REFRESH_TOKEN),
+    "google-drive": Boolean(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET && env.GOOGLE_REFRESH_TOKEN),
+    "google-calendar": Boolean(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET && env.GOOGLE_REFRESH_TOKEN),
+    stripe: Boolean(env.STRIPE_SECRET_KEY),
+    shopify: Boolean(env.SHOPIFY_ADMIN_TOKEN && env.SHOPIFY_SHOP_DOMAIN),
+    crm: Boolean(env.HUBSPOT_ACCESS_TOKEN || env.PIPEDRIVE_API_TOKEN || env.SALESFORCE_ACCESS_TOKEN),
+    obsidian: true,
+    firecrawl: Boolean(env.FIRECRAWL_API_KEY),
+    youtube: Boolean(agenticosConfig.youtubeApiKey && agenticosConfig.youtubeChannelId),
+    instagram: Boolean(agenticosConfig.instagramToken && agenticosConfig.instagramAccountId),
+    tiktok: Boolean(agenticosConfig.tiktokToken),
+    mcp: integration.status === "connected" || integration.status === "partial",
+  };
+
+  if (configured[integration.id]) {
+    return { ...integration, status: integration.id === "mcp" ? "partial" : "connected", mode: "real" };
+  }
+
+  return integration;
 }
 
 export async function insertRun(run: Run, plan: AgentPlan) {
@@ -142,9 +168,22 @@ export async function listRuns(limit = 100): Promise<Run[]> {
   const db = await getDb();
   const runRows = rows<RunRow>(db.exec(`SELECT * FROM runs ORDER BY started_at DESC LIMIT ${Number(limit)}`));
   const ids = runRows.map((run) => run.id);
+  if (!ids.length) return [];
   const steps = await listSteps(ids);
   const toolCalls = await listToolCalls(ids);
   const approvals = await listApprovals();
+  const stepsByRun = new Map<string, RunStep[]>();
+  steps.forEach((s) => {
+    const arr = stepsByRun.get(s.runId) ?? [];
+    arr.push(s);
+    stepsByRun.set(s.runId, arr);
+  });
+  const callsByRun = new Map<string, ToolCall[]>();
+  toolCalls.forEach((c) => {
+    const arr = callsByRun.get(c.runId) ?? [];
+    arr.push(c);
+    callsByRun.set(c.runId, arr);
+  });
   return runRows.map((run) => ({
     id: run.id,
     title: run.title,
@@ -157,8 +196,8 @@ export async function listRuns(limit = 100): Promise<Run[]> {
     durationMs: run.duration_ms,
     tokensEstimate: run.tokens_estimate,
     costEstimate: run.cost_estimate,
-    steps: steps.filter((step) => step.runId === run.id),
-    toolCalls: toolCalls.filter((call) => call.runId === run.id),
+    steps: stepsByRun.get(run.id) ?? [],
+    toolCalls: callsByRun.get(run.id) ?? [],
     approvals: approvals.filter((approval) => approval.runId === run.id).map((approval) => approval.id),
     filesTouched: parseJson<string[]>(run.files_touched_json, []),
     errors: parseJson<string[]>(run.errors_json, []),
@@ -167,9 +206,36 @@ export async function listRuns(limit = 100): Promise<Run[]> {
   }));
 }
 
-export async function getRun(id: string) {
-  const runs = await listRuns(500);
-  return runs.find((run) => run.id === id);
+export async function getRun(id: string): Promise<Run | undefined> {
+  const db = await getDb();
+  const runRows = rows<RunRow>(db.exec("SELECT * FROM runs WHERE id = ?", [id]));
+  const row = runRows[0];
+  if (!row) return undefined;
+  const [steps, toolCalls, approvals] = await Promise.all([
+    listSteps([id]),
+    listToolCalls([id]),
+    listApprovals(),
+  ]);
+  return {
+    id: row.id,
+    title: row.title,
+    prompt: row.prompt,
+    selectedSkill: row.selected_skill ?? undefined,
+    category: row.category,
+    status: row.status,
+    startedAt: row.started_at,
+    endedAt: row.ended_at,
+    durationMs: row.duration_ms,
+    tokensEstimate: row.tokens_estimate,
+    costEstimate: row.cost_estimate,
+    steps,
+    toolCalls,
+    approvals: approvals.filter((a) => a.runId === id).map((a) => a.id),
+    filesTouched: parseJson<string[]>(row.files_touched_json, []),
+    errors: parseJson<string[]>(row.errors_json, []),
+    finalOutput: row.final_output,
+    createdArtifacts: parseJson<string[]>(row.created_artifacts_json, []),
+  };
 }
 
 export async function getRunPlan(id: string): Promise<AgentPlan | undefined> {
@@ -181,6 +247,7 @@ export async function getRunPlan(id: string): Promise<AgentPlan | undefined> {
 async function listSteps(runIds: string[]): Promise<RunStep[]> {
   if (!runIds.length) return [];
   const db = await getDb();
+  const placeholders = runIds.map(() => "?").join(",");
   const result = rows<{
     id: string;
     run_id: string;
@@ -190,22 +257,35 @@ async function listSteps(runIds: string[]): Promise<RunStep[]> {
     started_at?: string;
     ended_at?: string;
     observation?: string;
-  }>(db.exec("SELECT * FROM run_steps ORDER BY step_index ASC"));
-  return result.map((step) => ({
-    id: step.id,
-    runId: step.run_id,
-    index: step.step_index,
-    title: step.title,
-    status: step.status,
-    startedAt: step.started_at,
-    endedAt: step.ended_at,
-    observation: step.observation,
-  }));
+  }>(
+    db.exec(
+      `SELECT * FROM run_steps WHERE run_id IN (${placeholders}) ORDER BY run_id ASC, step_index ASC`,
+      runIds,
+    ),
+  );
+  const seen = new Set<string>();
+  const out: RunStep[] = [];
+  for (const step of result) {
+    if (seen.has(step.id)) continue;
+    seen.add(step.id);
+    out.push({
+      id: step.id,
+      runId: step.run_id,
+      index: step.step_index,
+      title: step.title,
+      status: step.status,
+      startedAt: step.started_at,
+      endedAt: step.ended_at,
+      observation: step.observation,
+    });
+  }
+  return out;
 }
 
 async function listToolCalls(runIds: string[]): Promise<ToolCall[]> {
   if (!runIds.length) return [];
   const db = await getDb();
+  const placeholders = runIds.map(() => "?").join(",");
   const result = rows<{
     id: string;
     run_id: string;
@@ -217,19 +297,31 @@ async function listToolCalls(runIds: string[]): Promise<ToolCall[]> {
     risk_level: ToolCall["riskLevel"];
     status: ToolCall["status"];
     created_at: string;
-  }>(db.exec("SELECT * FROM tool_calls ORDER BY created_at ASC"));
-  return result.map((call) => ({
-    id: call.id,
-    runId: call.run_id,
-    stepId: call.step_id,
-    tool: call.tool,
-    action: call.action,
-    input: call.input,
-    output: call.output,
-    riskLevel: call.risk_level,
-    status: call.status,
-    createdAt: call.created_at,
-  }));
+  }>(
+    db.exec(
+      `SELECT * FROM tool_calls WHERE run_id IN (${placeholders}) ORDER BY created_at ASC`,
+      runIds,
+    ),
+  );
+  const seen = new Set<string>();
+  const out: ToolCall[] = [];
+  for (const call of result) {
+    if (seen.has(call.id)) continue;
+    seen.add(call.id);
+    out.push({
+      id: call.id,
+      runId: call.run_id,
+      stepId: call.step_id,
+      tool: call.tool,
+      action: call.action,
+      input: call.input,
+      output: call.output,
+      riskLevel: call.risk_level,
+      status: call.status,
+      createdAt: call.created_at,
+    });
+  }
+  return out;
 }
 
 export async function listApprovals(status?: ApprovalRequest["status"]): Promise<ApprovalRequest[]> {
@@ -284,7 +376,7 @@ export async function listIntegrations(): Promise<Integration[]> {
     actions: parseJson(integration.actions_json, []),
     lastUsed: integration.last_used,
     enabled: Boolean(integration.enabled),
-  }));
+  })).map(applyRuntimeIntegrationState);
 }
 
 export async function listRoutines(): Promise<Routine[]> {
@@ -381,5 +473,228 @@ export async function addAuditLog(log: Omit<AuditLog, "id" | "timestamp">) {
     "INSERT INTO audit_logs (id, timestamp, actor, action, integration, risk_level, result) VALUES (?, ?, ?, ?, ?, ?, ?)",
     [createId("audit"), nowIso(), log.actor, log.action, log.integration ?? null, log.riskLevel, log.result],
   );
+  await saveDb();
+}
+
+// ─── Vault Graph ──────────────────────────────────────────────────────────────
+
+export interface VaultNode {
+  path: string;
+  title: string;
+  folder: string;
+  wordCount: number;
+  linkCount: number;
+  backlinkCount?: number;
+  lastIndexed: string;
+  exists: boolean;
+}
+
+export interface VaultLink {
+  source: string;
+  target: string;
+  resolvedPath?: string | null;
+}
+
+export interface GraphStats {
+  nodeCount: number;
+  linkCount: number;
+  orphanCount: number;
+  mostLinked: { path: string; title: string; count: number } | null;
+}
+
+function selectRows<T extends object>(
+  db: import("sql.js").Database,
+  sql: string,
+  params: (string | number | null)[] = [],
+): T[] {
+  if (!params.length) return rows<T>(db.exec(sql));
+  const stmt = db.prepare(sql);
+  stmt.bind(params);
+  const out: T[] = [];
+  while (stmt.step()) out.push(stmt.getAsObject() as T);
+  stmt.free();
+  return out;
+}
+
+export async function upsertVaultNode(node: VaultNode): Promise<void> {
+  const db = await getDb();
+  db.run(
+    `INSERT INTO vault_nodes (path, title, folder, word_count, link_count, last_indexed, file_exists)
+     VALUES (?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(path) DO UPDATE SET
+       title = excluded.title, folder = excluded.folder,
+       word_count = excluded.word_count, link_count = excluded.link_count,
+       last_indexed = excluded.last_indexed, file_exists = excluded.file_exists`,
+    [node.path, node.title, node.folder, node.wordCount, node.linkCount, node.lastIndexed, node.exists ? 1 : 0],
+  );
+  await saveDb();
+}
+
+export async function upsertVaultLink(source: string, target: string, resolvedPath?: string): Promise<void> {
+  const db = await getDb();
+  db.run(
+    "INSERT OR IGNORE INTO vault_links (source, target, resolved_path, created_at) VALUES (?, ?, ?, ?)",
+    [source, target, resolvedPath ?? null, nowIso()],
+  );
+  await saveDb();
+}
+
+export async function clearVaultLinks(source: string): Promise<void> {
+  const db = await getDb();
+  db.run("DELETE FROM vault_links WHERE source = ?", [source]);
+  await saveDb();
+}
+
+export async function updateBacklinkCounts(): Promise<void> {
+  const db = await getDb();
+  db.run(`
+    UPDATE vault_nodes SET backlink_count = (
+      SELECT COUNT(*) FROM vault_links
+      WHERE vault_links.target = vault_nodes.title
+         OR vault_links.resolved_path = vault_nodes.path
+    )
+  `);
+  await saveDb();
+}
+
+export async function getBacklinks(notePath: string): Promise<VaultLink[]> {
+  const db = await getDb();
+  const noteName = notePath.replace(/^.*\//, "").replace(/\.md$/, "");
+  return selectRows<{ source: string; target: string; resolved_path: string | null }>(
+    db,
+    "SELECT source, target, resolved_path FROM vault_links WHERE resolved_path = ? OR target = ?",
+    [notePath, noteName],
+  ).map((r) => ({ source: r.source, target: r.target, resolvedPath: r.resolved_path }));
+}
+
+export async function getOutlinks(notePath: string): Promise<VaultLink[]> {
+  const db = await getDb();
+  return selectRows<{ source: string; target: string; resolved_path: string | null }>(
+    db,
+    "SELECT source, target, resolved_path FROM vault_links WHERE source = ?",
+    [notePath],
+  ).map((r) => ({ source: r.source, target: r.target, resolvedPath: r.resolved_path }));
+}
+
+export async function getGraphStats(): Promise<GraphStats> {
+  const db = await getDb();
+  const nodeCount = (db.exec("SELECT COUNT(*) FROM vault_nodes WHERE file_exists = 1")[0]?.values[0]?.[0] as number) ?? 0;
+  const linkCount = (db.exec("SELECT COUNT(*) FROM vault_links")[0]?.values[0]?.[0] as number) ?? 0;
+  const orphanCount = (db.exec("SELECT COUNT(*) FROM vault_nodes WHERE file_exists = 1 AND backlink_count = 0 AND link_count = 0")[0]?.values[0]?.[0] as number) ?? 0;
+  const top = selectRows<{ path: string; title: string; backlink_count: number }>(
+    db,
+    "SELECT path, title, backlink_count FROM vault_nodes WHERE file_exists = 1 ORDER BY backlink_count DESC LIMIT 1",
+  )[0];
+  return {
+    nodeCount,
+    linkCount,
+    orphanCount,
+    mostLinked: top ? { path: top.path, title: top.title, count: top.backlink_count } : null,
+  };
+}
+
+export async function getOrphanNodes(limit = 20): Promise<VaultNode[]> {
+  const db = await getDb();
+  return selectRows<{
+    path: string; title: string; folder: string;
+    word_count: number; link_count: number; backlink_count: number;
+    last_indexed: string; file_exists: number;
+  }>(
+    db,
+    `SELECT * FROM vault_nodes WHERE file_exists = 1 AND backlink_count = 0 AND link_count = 0
+     ORDER BY last_indexed DESC LIMIT ?`,
+    [limit],
+  ).map((r) => ({
+    path: r.path, title: r.title, folder: r.folder,
+    wordCount: r.word_count, linkCount: r.link_count, backlinkCount: r.backlink_count,
+    lastIndexed: r.last_indexed, exists: Boolean(r.file_exists),
+  }));
+}
+
+export async function getMostLinkedNodes(limit = 10): Promise<VaultNode[]> {
+  const db = await getDb();
+  return selectRows<{
+    path: string; title: string; folder: string;
+    word_count: number; link_count: number; backlink_count: number;
+    last_indexed: string; file_exists: number;
+  }>(
+    db,
+    "SELECT * FROM vault_nodes WHERE file_exists = 1 ORDER BY backlink_count DESC, link_count DESC LIMIT ?",
+    [limit],
+  ).map((r) => ({
+    path: r.path, title: r.title, folder: r.folder,
+    wordCount: r.word_count, linkCount: r.link_count, backlinkCount: r.backlink_count,
+    lastIndexed: r.last_indexed, exists: Boolean(r.file_exists),
+  }));
+}
+
+export interface VaultGraphBatch {
+  nodes: VaultNode[];
+  links: Array<{ source: string; target: string }>;
+}
+
+export async function batchUpsertVaultGraph(batch: VaultGraphBatch): Promise<void> {
+  const db = await getDb();
+  const ts = nowIso();
+  const sources = new Set(batch.nodes.map((n) => n.path));
+
+  db.run("BEGIN");
+  try {
+    for (const src of sources) {
+      db.run("DELETE FROM vault_links WHERE source = ?", [src]);
+    }
+    for (const node of batch.nodes) {
+      db.run(
+        `INSERT INTO vault_nodes (path, title, folder, word_count, link_count, last_indexed, file_exists)
+         VALUES (?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(path) DO UPDATE SET
+           title = excluded.title, folder = excluded.folder,
+           word_count = excluded.word_count, link_count = excluded.link_count,
+           last_indexed = excluded.last_indexed, file_exists = excluded.file_exists`,
+        [node.path, node.title, node.folder, node.wordCount, node.linkCount, node.lastIndexed, node.exists ? 1 : 0],
+      );
+    }
+    for (const link of batch.links) {
+      db.run(
+        "INSERT OR IGNORE INTO vault_links (source, target, resolved_path, created_at) VALUES (?, ?, ?, ?)",
+        [link.source, link.target, null, ts],
+      );
+    }
+    db.run(`
+      UPDATE vault_nodes SET backlink_count = (
+        SELECT COUNT(*) FROM vault_links
+        WHERE vault_links.target = vault_nodes.title
+           OR vault_links.resolved_path = vault_nodes.path
+      )
+    `);
+    db.run("COMMIT");
+  } catch (err) {
+    db.run("ROLLBACK");
+    throw err;
+  }
+  await saveDb();
+}
+
+export async function getPromotionCandidates(threshold = 3): Promise<VaultNode[]> {
+  const db = await getDb();
+  return selectRows<{
+    path: string; title: string; folder: string;
+    word_count: number; link_count: number; backlink_count: number;
+    last_indexed: string; file_exists: number;
+  }>(
+    db,
+    "SELECT * FROM vault_nodes WHERE folder = 'raw' AND file_exists = 1 AND backlink_count >= ? ORDER BY backlink_count DESC LIMIT 20",
+    [threshold],
+  ).map((r) => ({
+    path: r.path, title: r.title, folder: r.folder,
+    wordCount: r.word_count, linkCount: r.link_count, backlinkCount: r.backlink_count,
+    lastIndexed: r.last_indexed, exists: Boolean(r.file_exists),
+  }));
+}
+
+export async function markVaultNodeMoved(oldPath: string, newPath: string): Promise<void> {
+  const db = await getDb();
+  db.run("UPDATE vault_nodes SET file_exists = 0 WHERE path = ?", [oldPath]);
+  db.run("UPDATE vault_links SET resolved_path = ? WHERE resolved_path = ?", [newPath, oldPath]);
   await saveDb();
 }

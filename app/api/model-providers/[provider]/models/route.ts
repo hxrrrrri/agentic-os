@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getProvider } from "@/lib/agent/providers";
+import { isClaudeCliAvailable, isCodexCliAvailable, isCopilotCliAvailable, listCopilotCliModels } from "@/lib/agent/cli";
 
 interface OllamaTagsResponse {
   models?: Array<{ name?: string; model?: string }>;
@@ -21,6 +22,10 @@ function normalizeModels(models: Array<string | undefined>) {
         .filter((model): model is string => Boolean(model)),
     ),
   ).sort((a, b) => a.localeCompare(b));
+}
+
+function orderedModels(primary: string[], fallback: string[]) {
+  return Array.from(new Set([...primary, ...fallback].map((model) => model.trim()).filter(Boolean)));
 }
 
 export async function GET(
@@ -77,6 +82,43 @@ export async function GET(
       return json(200, { models });
     } catch {
       return json(503, { models: [], error: "Could not reach NVIDIA NIM model catalog." });
+    }
+  }
+
+  if (provider.id === "claude-code") {
+    const available = await isClaudeCliAvailable();
+    if (!available) {
+      return json(503, {
+        models: normalizeModels(provider.models ?? [provider.model]),
+        error: "Claude CLI not found on PATH. Install with: npm install -g @anthropic-ai/claude-code",
+      });
+    }
+    return json(200, { models: normalizeModels(provider.models ?? [provider.model]) });
+  }
+
+  if (provider.id === "codex") {
+    const available = await isCodexCliAvailable();
+    if (!available) {
+      return json(503, {
+        models: normalizeModels(provider.models ?? [provider.model]),
+        error: "Codex CLI not found on PATH. Install with: npm install -g @openai/codex",
+      });
+    }
+    return json(200, { models: normalizeModels(provider.models ?? [provider.model]) });
+  }
+
+  if (provider.id === "copilot-cli") {
+    const available = await isCopilotCliAvailable();
+    if (!available) {
+      return json(503, {
+        models: normalizeModels(provider.models ?? [provider.model]),
+        error: "Copilot CLI not found on PATH. Install with: npm install -g @github/copilot",
+      });
+    }
+    try {
+      return json(200, { models: orderedModels(await listCopilotCliModels(), provider.models ?? [provider.model]) });
+    } catch {
+      return json(200, { models: normalizeModels(provider.models ?? [provider.model]) });
     }
   }
 

@@ -19,7 +19,7 @@ export interface ApprovalRequest {
 export interface AuditLog {
   id: string;
   timestamp: string;
-  actor: "user" | "agent" | "system";
+  actor: "user" | "agent" | "system" | "scheduler" | "swarm" | "mcp";
   action: string;
   integration?: string;
   riskLevel: RiskLevel;

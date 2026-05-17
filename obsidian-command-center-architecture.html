@@ -1,0 +1,1037 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Claude Code × Obsidian — Command Center Architecture</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Orbitron:wght@400;700;900&display=swap');
+
+:root {
+  --bg: #07060a;
+  --bg-soft: #0a090f;
+  --panel: #100d18;
+  --panel2: #15111f;
+  --panel3: #1a1528;
+  --border: #2a2240;
+  --border-soft: #1f1830;
+  --border-glow: #4a3a6f;
+  --accent: #c97aff;       /* violet — Obsidian */
+  --accent2: #ff8a4c;      /* amber — Claude */
+  --accent3: #79ff9a;      /* green — success */
+  --accent4: #5ed3ff;      /* cyan — info */
+  --accent5: #f5c842;      /* yellow — caution */
+  --accent6: #ff5577;      /* red — danger */
+  --text: #ece4f7;
+  --text2: #9b8aaf;
+  --text3: #5a4a72;
+  --danger: #ff5566;
+  --radius: 8px;
+  --pad: 22px;
+  --gap: 20px;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 16px;
+  line-height: 1.6;
+  min-height: 100vh;
+  scroll-behavior: smooth;
+}
+
+body {
+  background:
+    radial-gradient(ellipse 90% 70% at 50% -20%, rgba(201,122,255,0.08), transparent 70%),
+    radial-gradient(ellipse 50% 40% at 100% 100%, rgba(255,138,76,0.05), transparent 70%),
+    radial-gradient(ellipse 50% 40% at 0% 100%, rgba(94,211,255,0.04), transparent 70%),
+    var(--bg);
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(201,122,255,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(201,122,255,0.03) 1px, transparent 1px);
+  background-size: 80px 80px;
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0.6;
+}
+
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent 0px,
+    transparent 3px,
+    rgba(0,0,0,0.05) 3px,
+    rgba(0,0,0,0.05) 4px
+  );
+  pointer-events: none;
+  z-index: 2;
+  opacity: 0.35;
+}
+
+.wrap {
+  position: relative;
+  z-index: 5;
+  max-width: 1480px;
+  margin: 0 auto;
+  padding: 64px 36px 96px;
+}
+
+.topnav {
+  position: sticky;
+  top: 16px;
+  z-index: 100;
+  margin-bottom: 32px;
+  display: flex;
+  justify-content: center;
+}
+.topnav-inner {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background: rgba(16, 13, 24, 0.85);
+  backdrop-filter: blur(14px);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+}
+.topnav a {
+  color: var(--text2);
+  text-decoration: none;
+  font-size: 0.78rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  padding: 6px 14px;
+  border-radius: 999px;
+  transition: all 0.18s;
+  white-space: nowrap;
+}
+.topnav a:hover { color: var(--accent); background: rgba(201,122,255,0.1); }
+.topnav-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent3);
+  margin-right: 8px;
+  animation: pulse 1.6s ease-in-out infinite;
+}
+
+.hdr { text-align: center; margin-bottom: 72px; padding: 32px 0; }
+.hdr-badge {
+  display: inline-flex; align-items: center; gap: 12px;
+  border: 1px solid var(--border-glow);
+  background: linear-gradient(90deg, rgba(201,122,255,0.06), rgba(201,122,255,0.12), rgba(201,122,255,0.06));
+  padding: 10px 24px; border-radius: 999px;
+  font-size: 0.85rem; letter-spacing: 0.24em; text-transform: uppercase;
+  color: var(--accent); margin-bottom: 28px;
+}
+.hdr-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--accent); animation: pulse 1.5s ease-in-out infinite; }
+@keyframes pulse { 0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(201,122,255,0.5)} 50%{opacity:0.6;box-shadow:0 0 0 8px rgba(201,122,255,0)} }
+
+.hdr-title {
+  font-family: 'Orbitron', monospace;
+  font-size: clamp(2.6rem, 6vw, 5.2rem);
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  line-height: 1;
+  margin-bottom: 20px;
+}
+.hdr-title .a1 { color: var(--accent2); text-shadow: 0 0 60px rgba(255,138,76,0.4); }
+.hdr-title .a2 { color: var(--text); }
+.hdr-title .a3 { color: var(--accent); text-shadow: 0 0 60px rgba(201,122,255,0.45); }
+.hdr-sub { font-size: 1rem; letter-spacing: 0.2em; color: var(--text2); text-transform: uppercase; margin-bottom: 18px; }
+.hdr-sub span { color: var(--accent2); }
+
+.hdr-tagline {
+  font-size: 1.05rem; color: var(--text);
+  letter-spacing: 0.04em;
+  max-width: 920px; margin: 0 auto;
+  line-height: 1.7; opacity: 0.88;
+}
+
+.hdr-actions { margin-top: 28px; display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+.btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 10px 22px; border-radius: 6px;
+  font-size: 0.82rem; letter-spacing: 0.16em; text-transform: uppercase;
+  font-weight: 700; text-decoration: none;
+  border: 1px solid var(--border); color: var(--text);
+  background: var(--panel2); transition: all 0.2s;
+}
+.btn:hover { border-color: var(--accent); color: var(--accent); transform: translateY(-1px); }
+.btn-primary { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+.btn-primary:hover { background: transparent; color: var(--accent); }
+
+.section { margin-bottom: 80px; }
+.section:last-child { margin-bottom: 0; }
+
+.sec-head { display: flex; align-items: center; gap: 18px; margin-bottom: 12px; }
+.sec-head-num {
+  font-family: 'Orbitron', monospace;
+  font-size: 0.9rem; font-weight: 900;
+  color: var(--accent); letter-spacing: 0.2em;
+  padding: 4px 12px; border: 1px solid var(--accent); border-radius: 4px;
+  background: rgba(201,122,255,0.08);
+}
+.sec-head-title {
+  font-family: 'Orbitron', monospace;
+  font-size: 1.6rem; font-weight: 900;
+  letter-spacing: 0.06em; color: var(--text); text-transform: uppercase;
+}
+.sec-head-rule { flex: 1; height: 1px; background: linear-gradient(90deg, var(--border), transparent); }
+.sec-desc {
+  font-size: 0.95rem; color: var(--text2);
+  letter-spacing: 0.04em; margin-bottom: 28px;
+  max-width: 1000px; line-height: 1.7;
+}
+
+.card {
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: var(--pad);
+  transition: border-color 0.2s, transform 0.2s, box-shadow 0.2s;
+  position: relative; overflow: hidden;
+}
+.card:hover { border-color: var(--border-glow); transform: translateY(-2px); box-shadow: 0 12px 32px rgba(0,0,0,0.5); }
+
+.metrics-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: var(--gap); }
+.metric { text-align: center; padding: 24px 18px; }
+.metric-val { font-family:'Orbitron',monospace; font-size:2.4rem; font-weight:900; color:var(--accent); line-height:1; letter-spacing: 0.04em; }
+.metric-lbl { font-size:0.8rem; color:var(--text2); letter-spacing:0.16em; text-transform:uppercase; margin-top:10px; }
+
+/* FLOW */
+.flow-stack { display: flex; flex-direction: column; align-items: center; gap: 0; position: relative; }
+.flow-row { width: 100%; display: grid; gap: var(--gap); }
+.row-1 { grid-template-columns: 1fr; }
+.row-3 { grid-template-columns: repeat(3, 1fr); }
+.row-4 { grid-template-columns: repeat(4, 1fr); }
+.row-5 { grid-template-columns: repeat(5, 1fr); }
+.row-6 { grid-template-columns: repeat(6, 1fr); }
+.flow-connector { width: 100%; height: 56px; display: flex; align-items: center; justify-content: center; position: relative; margin: 4px 0; }
+.flow-connector svg { overflow: visible; }
+
+.user-node {
+  background: linear-gradient(135deg, rgba(255,138,76,0.12), rgba(255,138,76,0.02));
+  border: 1px solid rgba(255,138,76,0.4);
+  border-radius: var(--radius); padding: 28px 48px; text-align: center;
+  box-shadow: 0 0 60px rgba(255,138,76,0.1);
+  max-width: 760px; margin: 0 auto;
+}
+.user-name { font-family:'Orbitron',monospace; font-size:1.5rem; font-weight:800; letter-spacing:0.18em; color:var(--accent2); }
+.user-desc { font-size:0.95rem; color:var(--text2); margin-top:10px; letter-spacing:0.06em; }
+.user-channels { display:flex; gap:8px; justify-content:center; margin-top:16px; flex-wrap:wrap; }
+.user-channels span {
+  border: 1px solid var(--border); background: rgba(255,255,255,0.02);
+  padding: 5px 14px; font-size: 0.74rem; letter-spacing: 0.16em;
+  color: var(--text2); border-radius: 999px; text-transform: uppercase;
+}
+
+.conductor-node {
+  background: linear-gradient(135deg, rgba(201,122,255,0.18), rgba(255,138,76,0.06) 50%, rgba(94,211,255,0.08));
+  border: 1px solid rgba(201,122,255,0.55);
+  border-radius: var(--radius); padding: 36px 56px; text-align: center;
+  box-shadow: 0 0 80px rgba(201,122,255,0.14), inset 0 1px 0 rgba(255,255,255,0.05);
+  position: relative; overflow: hidden;
+  max-width: 760px; margin: 0 auto;
+}
+.conductor-node::before {
+  content: ''; position: absolute; inset: 0;
+  background: repeating-linear-gradient(45deg, rgba(201,122,255,0.04) 0px, rgba(201,122,255,0.04) 1px, transparent 1px, transparent 14px);
+  opacity: 0.6;
+}
+.conductor-glyph {
+  width: 84px; height: 84px; margin: 0 auto 16px;
+  border: 2px solid rgba(201,122,255,0.6); border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: radial-gradient(circle, rgba(201,122,255,0.22), transparent 70%);
+  animation: spinGlow 6s linear infinite; position: relative; z-index: 1;
+}
+@keyframes spinGlow {
+  0%,100%{box-shadow:0 0 28px rgba(201,122,255,0.3)}
+  50%{box-shadow:0 0 56px rgba(201,122,255,0.55)}
+}
+.conductor-title { font-family:'Orbitron',monospace; font-size:1.8rem; font-weight:900; letter-spacing:0.24em; color:var(--accent); position:relative;z-index:1; }
+.conductor-role { font-size:0.95rem; color:var(--text2); letter-spacing:0.16em; margin-top:10px; position:relative;z-index:1; }
+.conductor-pills { display:flex; gap:8px; justify-content:center; margin-top:22px; flex-wrap:wrap; position:relative;z-index:1; }
+.pill { border: 1px solid; border-radius: 999px; padding: 5px 14px; font-size: 0.74rem; letter-spacing: 0.14em; text-transform: uppercase; }
+.pill-p { border-color: rgba(201,122,255,0.4); color: var(--accent); background: rgba(201,122,255,0.08); }
+.pill-o { border-color: rgba(255,138,76,0.4); color: var(--accent2); background: rgba(255,138,76,0.08); }
+.pill-g { border-color: rgba(121,255,154,0.4); color: var(--accent3); background: rgba(121,255,154,0.08); }
+.pill-b { border-color: rgba(94,211,255,0.4); color: var(--accent4); background: rgba(94,211,255,0.08); }
+.pill-y { border-color: rgba(245,200,66,0.4); color: var(--accent5); background: rgba(245,200,66,0.08); }
+
+/* MIDDLEWARE */
+.mw-node { padding: 24px 22px; position: relative; }
+.mw-node::after {
+  content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 3px;
+}
+.mw-p::after { background: linear-gradient(90deg, transparent, var(--accent), transparent); }
+.mw-o::after { background: linear-gradient(90deg, transparent, var(--accent2), transparent); }
+.mw-g::after { background: linear-gradient(90deg, transparent, var(--accent3), transparent); }
+.mw-b::after { background: linear-gradient(90deg, transparent, var(--accent4), transparent); }
+.mw-y::after { background: linear-gradient(90deg, transparent, var(--accent5), transparent); }
+.mw-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.mw-title { font-family: 'Orbitron', monospace; font-size: 0.95rem; font-weight: 700; letter-spacing: 0.2em; text-transform: uppercase; }
+.mw-p .mw-title { color: var(--accent); }
+.mw-o .mw-title { color: var(--accent2); }
+.mw-g .mw-title { color: var(--accent3); }
+.mw-b .mw-title { color: var(--accent4); }
+.mw-y .mw-title { color: var(--accent5); }
+.mw-tag {
+  font-size: 0.65rem; letter-spacing: 0.18em; text-transform: uppercase;
+  padding: 2px 8px; border-radius: 3px;
+  border: 1px solid var(--border-glow); color: var(--text2);
+  background: var(--bg); margin-left: auto;
+}
+.mw-items { list-style: none; }
+.mw-items li {
+  font-size: 0.86rem; color: var(--text2);
+  padding: 7px 0; border-bottom: 1px solid var(--border-soft);
+  display: flex; align-items: center; gap: 10px; line-height: 1.55;
+}
+.mw-items li:last-child { border-bottom: none; }
+.mw-items li::before { content: '▸'; font-size: 0.85rem; color: var(--text3); flex-shrink: 0; }
+
+/* VAULT TREE */
+.vault-grid { display: grid; grid-template-columns: 1.1fr 2fr; gap: var(--gap); }
+.vault-tree {
+  background: var(--panel2); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 22px 24px;
+  font-family: 'JetBrains Mono', monospace; font-size: 0.86rem;
+  line-height: 1.85;
+}
+.vault-tree .vt-root { color: var(--accent); font-weight: 700; }
+.vault-tree .vt-folder { color: var(--accent2); }
+.vault-tree .vt-file { color: var(--text2); }
+.vault-tree .vt-comment { color: var(--text3); font-style: italic; }
+.vault-tree .indent1 { padding-left: 18px; }
+.vault-tree .indent2 { padding-left: 36px; }
+.vault-tree .indent3 { padding-left: 54px; }
+
+.vault-info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--gap); }
+.vault-info {
+  background: var(--panel2); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 18px 20px;
+}
+.vault-info h4 {
+  font-family: 'Orbitron', monospace; font-size: 0.82rem;
+  letter-spacing: 0.18em; text-transform: uppercase;
+  color: var(--accent); margin-bottom: 10px;
+}
+.vault-info p { font-size: 0.86rem; color: var(--text2); line-height: 1.65; }
+
+/* FEATURE */
+.feature-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--gap); }
+.feature-card { padding: 26px 24px; }
+.feature-tag {
+  position: absolute; top: 16px; right: 18px;
+  font-size: 0.66rem; letter-spacing: 0.18em; text-transform: uppercase;
+  font-weight: 700; padding: 3px 9px; border-radius: 3px;
+}
+.feature-tag.p0 { color: var(--danger); border: 1px solid var(--danger); background: rgba(255,85,102,0.08); }
+.feature-tag.p1 { color: var(--accent2); border: 1px solid var(--accent2); background: rgba(255,138,76,0.08); }
+.feature-tag.p2 { color: var(--accent5); border: 1px solid var(--accent5); background: rgba(245,200,66,0.08); }
+.feature-icon {
+  font-family: 'Orbitron', monospace; font-size: 0.58rem; font-weight: 900;
+  letter-spacing: 0.14em; padding: 5px 11px;
+  border: 1px solid var(--border-glow); border-radius: 3px;
+  color: var(--accent); background: rgba(201,122,255,0.06);
+  margin-bottom: 14px; display: inline-block;
+}
+.feature-title {
+  font-family: 'Orbitron', monospace; font-size: 1.1rem;
+  font-weight: 800; letter-spacing: 0.1em;
+  color: var(--accent); margin-bottom: 10px; text-transform: uppercase;
+}
+.feature-desc { font-size: 0.92rem; color: var(--text2); line-height: 1.7; }
+.feature-meta {
+  margin-top: 18px; padding-top: 14px;
+  border-top: 1px solid var(--border-soft);
+  display: flex; gap: 8px; flex-wrap: wrap;
+}
+.feature-meta span {
+  font-size: 0.7rem; color: var(--text3);
+  letter-spacing: 0.12em; text-transform: uppercase;
+  padding: 3px 9px; border-radius: 999px;
+  background: rgba(255,255,255,0.025);
+}
+
+/* COMMAND BAR */
+.cmd-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; }
+.cmd-chip {
+  padding: 14px 12px; text-align: center;
+  border: 1px solid var(--border); border-radius: 5px;
+  background: var(--panel2); transition: all 0.2s; cursor: default;
+}
+.cmd-chip:hover { border-color: var(--accent); transform: translateY(-2px); box-shadow: 0 8px 20px rgba(201,122,255,0.15); }
+.cmd-name { font-family:'Orbitron',monospace; font-size:0.78rem; color:var(--text); letter-spacing:0.12em; font-weight:700; text-transform: uppercase; }
+.cmd-desc { font-size:0.7rem; color:var(--text3); letter-spacing:0.04em; margin-top:6px; line-height: 1.4; }
+
+/* PIPELINE */
+.pipe-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 10px; align-items: stretch; }
+.pipe-node {
+  padding: 16px 10px; text-align: center;
+  background: var(--panel2); border: 1px solid var(--border);
+  border-radius: 5px; position: relative;
+}
+.pipe-node.p1 { border-color: rgba(94,211,255,0.4); }
+.pipe-node.p2 { border-color: rgba(255,138,76,0.4); }
+.pipe-node.p3 { border-color: rgba(201,122,255,0.5); }
+.pipe-node.p4 { border-color: rgba(245,200,66,0.4); }
+.pipe-node.p5 { border-color: rgba(121,255,154,0.4); }
+.pipe-num {
+  font-family:'Orbitron',monospace; font-size: 0.65rem;
+  color:var(--text3); letter-spacing:0.18em; margin-bottom: 6px;
+}
+.pipe-title {
+  font-family:'Orbitron',monospace; font-size:0.78rem;
+  font-weight:800; letter-spacing:0.1em;
+  color:var(--text); text-transform:uppercase; margin-bottom: 6px;
+}
+.pipe-desc { font-size:0.7rem; color:var(--text2); line-height:1.55; }
+
+/* PROVIDER */
+.provider-row { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+.prov-chip {
+  border: 1px solid var(--border); border-radius: 999px;
+  padding: 10px 22px; font-size:0.85rem; letter-spacing:0.12em; text-transform:uppercase;
+  color: var(--text2); background: var(--panel2); transition: all 0.2s;
+}
+.prov-chip:hover { border-color: var(--accent); color: var(--accent); }
+.prov-chip.primary { border-color: rgba(201,122,255,0.5); color: var(--accent); background: rgba(201,122,255,0.08); }
+
+/* MOAT / FEATURES */
+.moat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--gap); }
+.moat-card {
+  padding: 26px 22px;
+  background: linear-gradient(160deg, var(--panel2), var(--panel));
+  border: 1px solid var(--border); border-radius: var(--radius);
+}
+.moat-num { font-family: 'Orbitron', monospace; font-size: 1.8rem; font-weight: 900; color: var(--accent2); margin-bottom: 12px; letter-spacing: 0.06em; }
+.moat-title { font-family: 'Orbitron', monospace; font-size: 1.05rem; font-weight: 800; letter-spacing: 0.12em; color: var(--text); margin-bottom: 12px; text-transform: uppercase; }
+.moat-desc { font-size: 0.9rem; color: var(--text2); line-height: 1.7; }
+
+/* ROADMAP */
+.roadmap { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--gap); }
+.phase-card {
+  padding: 22px; background: var(--panel2);
+  border: 1px solid var(--border); border-radius: var(--radius);
+  position: relative; overflow: hidden;
+}
+.phase-card::before { content: ''; position: absolute; top: 0; left: 0; width: 4px; height: 100%; }
+.phase-1::before { background: var(--accent3); }
+.phase-2::before { background: var(--accent); }
+.phase-3::before { background: var(--accent2); }
+.phase-4::before { background: var(--accent4); }
+.phase-tag { font-size: 0.72rem; letter-spacing: 0.22em; text-transform: uppercase; color: var(--text3); margin-bottom: 8px; }
+.phase-title { font-family: 'Orbitron', monospace; font-size: 1.1rem; font-weight: 800; letter-spacing: 0.12em; margin-bottom: 14px; text-transform: uppercase; }
+.phase-1 .phase-title { color: var(--accent3); }
+.phase-2 .phase-title { color: var(--accent); }
+.phase-3 .phase-title { color: var(--accent2); }
+.phase-4 .phase-title { color: var(--accent4); }
+.phase-list { list-style: none; font-size: 0.86rem; color: var(--text2); line-height: 1.75; }
+.phase-list li { padding: 5px 0; padding-left: 18px; position: relative; }
+.phase-list li::before { content: '▸'; position: absolute; left: 0; color: var(--text3); }
+.phase-list li.done { color: var(--accent3); }
+.phase-list li.done::before { content: '✓'; color: var(--accent3); }
+
+/* COMPARE */
+.compare-table {
+  width: 100%; border-collapse: collapse;
+  background: var(--panel2); border: 1px solid var(--border); border-radius: var(--radius);
+  overflow: hidden;
+}
+.compare-table th, .compare-table td {
+  padding: 14px 18px; text-align: left;
+  border-bottom: 1px solid var(--border-soft);
+  font-size: 0.88rem;
+}
+.compare-table th {
+  background: rgba(0,0,0,0.3);
+  font-family: 'Orbitron', monospace;
+  font-size: 0.78rem; letter-spacing: 0.16em;
+  text-transform: uppercase; color: var(--text3); font-weight: 700;
+}
+.compare-table td:first-child { color: var(--accent); font-weight: 700; }
+.compare-table tr:last-child td { border-bottom: none; }
+.compare-table .ok { color: var(--accent3); }
+.compare-table .no { color: var(--danger); }
+.compare-table .partial { color: var(--accent5); }
+
+/* FOOTER */
+.footer { text-align: center; margin-top: 64px; padding-top: 32px; border-top: 1px solid var(--border); }
+.footer-line { font-size: 0.88rem; letter-spacing: 0.2em; color: var(--text3); text-transform: uppercase; }
+.footer-stack { margin-top: 12px; font-size: 0.78rem; color: var(--text3); letter-spacing: 0.08em; max-width: 1000px; margin-left: auto; margin-right: auto; line-height: 1.7; }
+
+@media (max-width: 1100px) {
+  .metrics-grid, .row-4, .row-5, .row-6, .feature-grid, .moat-grid, .roadmap, .cmd-grid, .pipe-grid, .vault-grid { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 640px) {
+  .metrics-grid, .row-4, .row-5, .row-6, .feature-grid, .moat-grid, .roadmap, .cmd-grid, .pipe-grid, .vault-grid { grid-template-columns: 1fr; }
+  .wrap { padding: 28px 16px 48px; }
+  .topnav { display: none; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<!-- TOP NAV -->
+<nav class="topnav">
+  <div class="topnav-inner">
+    <span class="topnav-dot"></span>
+    <a href="#overview">Overview</a>
+    <a href="#metrics">Metrics</a>
+    <a href="#core">Flow</a>
+    <a href="#vault">Vault</a>
+    <a href="#commands">Commands</a>
+    <a href="#pipeline">Pipeline</a>
+    <a href="#features">Features</a>
+    <a href="#moats">Moats</a>
+    <a href="#compare">vs AgenticOS</a>
+    <a href="#roadmap">Roadmap</a>
+  </div>
+</nav>
+
+<!-- HEADER -->
+<header class="hdr" id="overview">
+  <div class="hdr-badge"><span class="hdr-dot"></span> Architecture v1.0 — Vault-Native Edition</div>
+  <h1 class="hdr-title"><span class="a1">CLAUDE</span><span class="a2">·CODE × </span><span class="a3">OBSIDIAN</span></h1>
+  <p class="hdr-sub">File-Based Memory · <span>Natural-Language Agent</span> · Personal Command Center</p>
+  <p class="hdr-tagline">
+    A markdown vault becomes durable AI memory. Claude Code becomes the natural-language operator over that memory. Slash-commands replace re-explanation. The dashboard surfaces context, metrics, and the next action — all sourced from your own notes.
+  </p>
+  <div class="hdr-actions">
+    <a href="#core" class="btn btn-primary">See Architecture</a>
+    <a href="#compare" class="btn">Compare to AgenticOS</a>
+    <a href="#roadmap" class="btn">Roadmap</a>
+  </div>
+</header>
+
+<!-- METRICS -->
+<section class="section" id="metrics">
+  <div class="sec-head">
+    <span class="sec-head-num">01</span>
+    <h2 class="sec-head-title">System Metrics</h2>
+    <div class="sec-head-rule"></div>
+  </div>
+  <div class="metrics-grid">
+    <div class="card metric"><div class="metric-val">∞</div><div class="metric-lbl">Vault Notes</div></div>
+    <div class="card metric"><div class="metric-val">1M</div><div class="metric-lbl">Context Ctx</div></div>
+    <div class="card metric"><div class="metric-val">10</div><div class="metric-lbl">Slash Cmds</div></div>
+    <div class="card metric"><div class="metric-val">4</div><div class="metric-lbl">Memory Tiers</div></div>
+    <div class="card metric"><div class="metric-val" style="color:var(--accent3)">100%</div><div class="metric-lbl">Markdown</div></div>
+    <div class="card metric"><div class="metric-val" style="color:var(--accent2)">Local</div><div class="metric-lbl">First</div></div>
+  </div>
+</section>
+
+<!-- CORE FLOW -->
+<section class="section" id="core">
+  <div class="sec-head">
+    <span class="sec-head-num">02</span>
+    <h2 class="sec-head-title">Core Flow</h2>
+    <div class="sec-head-rule"></div>
+  </div>
+  <p class="sec-desc">From human capture to vault-saved artifact. Markdown is the lingua franca: humans write it, the LLM reads it, the dashboard renders it, git versions it.</p>
+
+  <div class="flow-stack">
+
+    <!-- HUMAN -->
+    <div class="user-node">
+      <div class="user-name">YOU · OPERATOR</div>
+      <div class="user-desc">Capture · Reflect · Approve · Steer the agent in plain language</div>
+      <div class="user-channels">
+        <span>Daily Note</span><span>Inbox Dump</span><span>Voice</span><span>Slash Cmd</span><span>Prompt Console</span>
+      </div>
+    </div>
+
+    <div class="flow-connector">
+      <svg width="100%" height="56" viewBox="0 0 1200 56" preserveAspectRatio="none">
+        <defs><marker id="ar1" markerWidth="10" markerHeight="8" refX="10" refY="4" orient="auto"><polygon points="0 0, 10 4, 0 8" fill="rgba(201,122,255,0.8)"/></marker></defs>
+        <line x1="600" y1="0" x2="600" y2="48" stroke="rgba(201,122,255,0.4)" stroke-width="2" stroke-dasharray="6 5" marker-end="url(#ar1)"/>
+        <circle r="5" fill="var(--accent)"><animateMotion dur="1.6s" repeatCount="indefinite"><mpath href="#pt1"/></animateMotion></circle>
+        <path id="pt1" d="M600,0 L600,48" fill="none"/>
+        <text x="616" y="32" fill="rgba(201,122,255,0.6)" font-family="JetBrains Mono,monospace" font-size="11" letter-spacing="0.16em">CAPTURE</text>
+      </svg>
+    </div>
+
+    <!-- CONDUCTOR -->
+    <div class="conductor-node">
+      <div class="conductor-glyph">
+        <svg viewBox="0 0 32 32" width="40" height="40" fill="none" stroke="var(--accent)" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M16 3L29 10.5v15L16 29 3 21.5v-15L16 3z"/>
+          <circle cx="16" cy="16" r="5"/>
+          <circle cx="16" cy="16" r="2"/>
+        </svg>
+      </div>
+      <div class="conductor-title">CLAUDE CODE</div>
+      <div class="conductor-role">Terminal-Native Agent · Reads &amp; Writes the Vault · Runs Slash Commands</div>
+      <div class="conductor-pills">
+        <span class="pill pill-p">Opus 4.7</span>
+        <span class="pill pill-o">1M Context</span>
+        <span class="pill pill-g">File Ops</span>
+        <span class="pill pill-b">MCP Tools</span>
+        <span class="pill pill-y">CLAUDE.md</span>
+      </div>
+    </div>
+
+    <div class="flow-connector">
+      <svg width="100%" height="56" viewBox="0 0 1200 56" preserveAspectRatio="none">
+        <defs><marker id="ar2" markerWidth="10" markerHeight="8" refX="10" refY="4" orient="auto"><polygon points="0 0, 10 4, 0 8" fill="rgba(201,122,255,0.8)"/></marker></defs>
+        <line x1="200" y1="0" x2="200" y2="48" stroke="rgba(201,122,255,0.4)" stroke-width="2" stroke-dasharray="6 5" marker-end="url(#ar2)"/>
+        <line x1="500" y1="0" x2="500" y2="48" stroke="rgba(255,138,76,0.4)" stroke-width="2" stroke-dasharray="6 5" marker-end="url(#ar2)"/>
+        <line x1="800" y1="0" x2="800" y2="48" stroke="rgba(121,255,154,0.4)" stroke-width="2" stroke-dasharray="6 5" marker-end="url(#ar2)"/>
+        <line x1="1100" y1="0" x2="1100" y2="48" stroke="rgba(94,211,255,0.4)" stroke-width="2" stroke-dasharray="6 5" marker-end="url(#ar2)"/>
+      </svg>
+    </div>
+
+    <!-- MIDDLEWARE -->
+    <div class="flow-row row-4">
+      <div class="card mw-node mw-p">
+        <div class="mw-head"><div class="mw-title">Vault FS</div><span class="mw-tag">Memory</span></div>
+        <ul class="mw-items">
+          <li>Markdown read / write</li>
+          <li>Daily-note auto-create</li>
+          <li>Wikilink graph index</li>
+          <li>Frontmatter parser</li>
+          <li>Git versioning</li>
+        </ul>
+      </div>
+      <div class="card mw-node mw-o">
+        <div class="mw-head"><div class="mw-title">Retrieval</div><span class="mw-tag">Context</span></div>
+        <ul class="mw-items">
+          <li>Hybrid BM25 + vector</li>
+          <li>Graph-walk expansion</li>
+          <li>Recency boost</li>
+          <li>Context budget guard</li>
+          <li>Frontmatter filters</li>
+        </ul>
+      </div>
+      <div class="card mw-node mw-g">
+        <div class="mw-head"><div class="mw-title">Skills</div><span class="mw-tag">Action</span></div>
+        <ul class="mw-items">
+          <li>Slash command registry</li>
+          <li>Scheduled routines</li>
+          <li>MCP tool servers</li>
+          <li>Multi-agent swarm</li>
+          <li>Approval gates</li>
+        </ul>
+      </div>
+      <div class="card mw-node mw-b">
+        <div class="mw-head"><div class="mw-title">Dashboard</div><span class="mw-tag">Surface</span></div>
+        <ul class="mw-items">
+          <li>Command Center UI</li>
+          <li>Metric widgets (YT/IG/TT)</li>
+          <li>Run streams (SSE)</li>
+          <li>Token-burn meter</li>
+          <li>Approval inbox</li>
+        </ul>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- VAULT STRUCTURE -->
+<section class="section" id="vault">
+  <div class="sec-head">
+    <span class="sec-head-num">03</span>
+    <h2 class="sec-head-title">Vault Structure · The Memory Layer</h2>
+    <div class="sec-head-rule"></div>
+  </div>
+  <p class="sec-desc">The vault is the truth. Three flows: <strong style="color:var(--accent2)">raw/</strong> is the human inbox, <strong style="color:var(--accent)">wiki/</strong> is the LLM-curated knowledge base, <strong style="color:var(--accent3)">output/</strong> is artifact storage. Everything is git-versioned plain markdown.</p>
+
+  <div class="vault-grid">
+    <div class="vault-tree">
+      <div><span class="vt-root">vault/</span></div>
+      <div class="indent1"><span class="vt-folder">_archive-vault/</span>  <span class="vt-comment"># cold storage</span></div>
+      <div class="indent1"><span class="vt-folder">raw/</span>  <span class="vt-comment"># inbox — dump anything</span></div>
+      <div class="indent2"><span class="vt-file">karpathy-tweet.md</span></div>
+      <div class="indent2"><span class="vt-file">article-about-rag.md</span></div>
+      <div class="indent2"><span class="vt-file">random-paper.pdf</span></div>
+      <div class="indent1"><span class="vt-folder">daily-notes/</span>  <span class="vt-comment"># YYYY-MM-DD.md</span></div>
+      <div class="indent1"><span class="vt-folder">inbox/</span>  <span class="vt-comment"># triage queue</span></div>
+      <div class="indent1"><span class="vt-folder">content/</span>  <span class="vt-comment"># scripts, drafts</span></div>
+      <div class="indent1"><span class="vt-folder">projects/</span>  <span class="vt-comment"># {project}-project.md</span></div>
+      <div class="indent1"><span class="vt-folder">ops/</span>  <span class="vt-comment"># schedule, tasks</span></div>
+      <div class="indent1"><span class="vt-folder">wiki/</span>  <span class="vt-comment"># LLM-curated</span></div>
+      <div class="indent2"><span class="vt-file">_master-index.md</span></div>
+      <div class="indent2"><span class="vt-folder">ai-agents/</span></div>
+      <div class="indent2"><span class="vt-folder">rag-systems/</span></div>
+      <div class="indent2"><span class="vt-folder">content-creation/</span></div>
+      <div class="indent1"><span class="vt-folder">system/</span>  <span class="vt-comment"># prompts, templates</span></div>
+      <div class="indent1"><span class="vt-folder">output/</span>  <span class="vt-comment"># run artifacts</span></div>
+      <div class="indent2"><span class="vt-file">query-results.md</span></div>
+      <div class="indent2"><span class="vt-folder">slide-decks/</span></div>
+      <div class="indent1"><span class="vt-file">CLAUDE.md</span>  <span class="vt-comment"># persistent agent context</span></div>
+    </div>
+
+    <div class="vault-info-grid">
+      <div class="vault-info">
+        <h4>RAW — Human Inbox</h4>
+        <p>Anything goes. Tweets, papers, half-thoughts, voice transcripts. No structure required. Agent processes nightly.</p>
+      </div>
+      <div class="vault-info">
+        <h4>WIKI — Curated Memory</h4>
+        <p>LLM-maintained knowledge base. Topic-organized. Cross-linked. The agent promotes <em>raw/</em> ideas here after multiple references.</p>
+      </div>
+      <div class="vault-info">
+        <h4>DAILY — Reflection Log</h4>
+        <p>One file per day with templated sections. Schedule, tasks, journal. Source of truth for weekly review.</p>
+      </div>
+      <div class="vault-info">
+        <h4>PROJECTS — Reusable Context</h4>
+        <p>One markdown per active project. Pass into any new session to skip re-explanation. Lives forever.</p>
+      </div>
+      <div class="vault-info">
+        <h4>OUTPUT — Generated Artifacts</h4>
+        <p>Where runs save deliverables: research reports, content drafts, slide decks, briefs. Never edit raw; treat as build artifacts.</p>
+      </div>
+      <div class="vault-info">
+        <h4>CLAUDE.md — Agent Instructions</h4>
+        <p>The constitution. Tone, taboos, project rules, default behaviors. Loaded into every session automatically.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- COMMAND BAR -->
+<section class="section" id="commands">
+  <div class="sec-head">
+    <span class="sec-head-num">04</span>
+    <h2 class="sec-head-title">Slash Commands · The Action Surface</h2>
+    <div class="sec-head-rule"></div>
+  </div>
+  <p class="sec-desc">Each button in the Command Center is a slash command — a reusable, vault-aware routine that reads specific folders, calls the agent with a tuned system prompt, and writes results back into the vault.</p>
+
+  <div class="cmd-grid">
+    <div class="cmd-chip"><div class="cmd-name">/plan-today</div><div class="cmd-desc">daily-notes + calendar → today's plan</div></div>
+    <div class="cmd-chip"><div class="cmd-name">/plan-tomorrow</div><div class="cmd-desc">tomorrow scaffold with carry-overs</div></div>
+    <div class="cmd-chip"><div class="cmd-name">/morning-brief</div><div class="cmd-desc">overnight news + inbox digest</div></div>
+    <div class="cmd-chip"><div class="cmd-name">/inbox-brief</div><div class="cmd-desc">unread email/messages summary</div></div>
+    <div class="cmd-chip"><div class="cmd-name">/deep-research</div><div class="cmd-desc">multi-source synthesis → wiki/</div></div>
+    <div class="cmd-chip"><div class="cmd-name">/content-cascade</div><div class="cmd-desc">long-form → shorts/threads/posts</div></div>
+    <div class="cmd-chip"><div class="cmd-name">/yt-pipeline</div><div class="cmd-desc">script → thumb brief → metadata</div></div>
+    <div class="cmd-chip"><div class="cmd-name">/weekly-review</div><div class="cmd-desc">7-day synthesis + patterns</div></div>
+    <div class="cmd-chip"><div class="cmd-name">/vault-cleanup</div><div class="cmd-desc">orphans, dead links, dupes</div></div>
+    <div class="cmd-chip"><div class="cmd-name">/pull-metrics</div><div class="cmd-desc">YT/IG/TT API → dashboard</div></div>
+  </div>
+</section>
+
+<!-- PIPELINE -->
+<section class="section" id="pipeline">
+  <div class="sec-head">
+    <span class="sec-head-num">05</span>
+    <h2 class="sec-head-title">Capture → Promote Pipeline</h2>
+    <div class="sec-head-rule"></div>
+  </div>
+  <p class="sec-desc">An idea's life cycle in the vault. The promotion ladder prevents the wiki from drowning in low-signal scraps while preserving everything raw for retroactive use.</p>
+
+  <div class="pipe-grid">
+    <div class="pipe-node p1">
+      <div class="pipe-num">01</div>
+      <div class="pipe-title">Capture</div>
+      <div class="pipe-desc">Voice, paste, screenshot, email → <code style="color:var(--accent2)">raw/</code></div>
+    </div>
+    <div class="pipe-node p2">
+      <div class="pipe-num">02</div>
+      <div class="pipe-title">Classify</div>
+      <div class="pipe-desc">LLM tags + frontmatter, routes to project / topic</div>
+    </div>
+    <div class="pipe-node p3">
+      <div class="pipe-num">03</div>
+      <div class="pipe-title">Embed</div>
+      <div class="pipe-desc">Vector index updated. Backlinks resolved.</div>
+    </div>
+    <div class="pipe-node p4">
+      <div class="pipe-num">04</div>
+      <div class="pipe-title">Retrieve</div>
+      <div class="pipe-desc">Slash cmds pull relevant subset into context</div>
+    </div>
+    <div class="pipe-node p5">
+      <div class="pipe-num">05</div>
+      <div class="pipe-title">Synthesize</div>
+      <div class="pipe-desc">Agent writes draft to <code style="color:var(--accent3)">output/</code></div>
+    </div>
+    <div class="pipe-node p3">
+      <div class="pipe-num">06</div>
+      <div class="pipe-title">Promote</div>
+      <div class="pipe-desc">N refs → migrate to <code style="color:var(--accent)">wiki/</code></div>
+    </div>
+    <div class="pipe-node p1">
+      <div class="pipe-num">07</div>
+      <div class="pipe-title">Publish</div>
+      <div class="pipe-desc">Approval-gated → external API (YT, X, etc.)</div>
+    </div>
+  </div>
+</section>
+
+<!-- FEATURES -->
+<section class="section" id="features">
+  <div class="sec-head">
+    <span class="sec-head-num">06</span>
+    <h2 class="sec-head-title">Feature Set · What Makes It Sing</h2>
+    <div class="sec-head-rule"></div>
+  </div>
+  <p class="sec-desc">Capabilities beyond a basic chat window. Each is an independent module routed through the conductor.</p>
+
+  <div class="feature-grid">
+    <div class="card feature-card">
+      <span class="feature-tag p0">P0</span>
+      <div class="feature-icon">CORE</div>
+      <div class="feature-title">File-Based Memory</div>
+      <div class="feature-desc">Every belief, project, person, decision is a markdown file. Inspectable, editable, versioned. No opaque chat memory.</div>
+      <div class="feature-meta"><span>Markdown</span><span>Git</span><span>Local</span></div>
+    </div>
+    <div class="card feature-card">
+      <span class="feature-tag p0">P0</span>
+      <div class="feature-icon">CORE</div>
+      <div class="feature-title">Wikilink Graph</div>
+      <div class="feature-desc">[[Backlinks]] resolve into a navigable graph. Agent walks the graph to assemble context, not just keyword search.</div>
+      <div class="feature-meta"><span>Backlinks</span><span>Graph</span><span>Obsidian-compat</span></div>
+    </div>
+    <div class="card feature-card">
+      <span class="feature-tag p0">P0</span>
+      <div class="feature-icon">CORE</div>
+      <div class="feature-title">Slash Command Bar</div>
+      <div class="feature-desc">One-click routines (plan-today, morning-brief, content-cascade…) that each load their own context recipe.</div>
+      <div class="feature-meta"><span>Routines</span><span>Cron</span><span>Approval</span></div>
+    </div>
+
+    <div class="card feature-card">
+      <span class="feature-tag p1">P1</span>
+      <div class="feature-icon">RECALL</div>
+      <div class="feature-title">Hybrid Retrieval</div>
+      <div class="feature-desc">BM25 + embeddings + graph-walk + recency. Context-budget manager picks what fits in the 1M window.</div>
+      <div class="feature-meta"><span>SQLite-VSS</span><span>BM25</span><span>Budget</span></div>
+    </div>
+    <div class="card feature-card">
+      <span class="feature-tag p1">P1</span>
+      <div class="feature-icon">RECALL</div>
+      <div class="feature-title">Memory Promotion</div>
+      <div class="feature-desc">Ideas referenced ≥N times graduate from raw/ to wiki/. Prevents knowledge base bloat without losing source dumps.</div>
+      <div class="feature-meta"><span>Auto</span><span>LLM-curated</span></div>
+    </div>
+    <div class="card feature-card">
+      <span class="feature-tag p1">P1</span>
+      <div class="feature-icon">RECALL</div>
+      <div class="feature-title">Conflict Detector</div>
+      <div class="feature-desc">Flags contradicting notes ("you wrote X on Monday, Y on Friday — reconcile?"). Catches stale beliefs before they poison output.</div>
+      <div class="feature-meta"><span>Background</span><span>Weekly</span></div>
+    </div>
+
+    <div class="card feature-card">
+      <span class="feature-tag p1">P1</span>
+      <div class="feature-icon">CONTENT</div>
+      <div class="feature-title">Content Cascade</div>
+      <div class="feature-desc">One long-form note fans out: YT script, shorts beats, X thread, blog post, IG caption, newsletter blurb. All reference back to the source.</div>
+      <div class="feature-meta"><span>Multi-Agent</span><span>Swarm</span></div>
+    </div>
+    <div class="card feature-card">
+      <span class="feature-tag p1">P1</span>
+      <div class="feature-icon">METRICS</div>
+      <div class="feature-title">Platform Pulls</div>
+      <div class="feature-desc">YouTube, Instagram, TikTok, X analytics flow into the dashboard. Weekly review reasons over real numbers, not vibes.</div>
+      <div class="feature-meta"><span>YT API</span><span>IG Graph</span><span>TT</span></div>
+    </div>
+    <div class="card feature-card">
+      <span class="feature-tag p1">P1</span>
+      <div class="feature-icon">SAFETY</div>
+      <div class="feature-title">Approval Gates</div>
+      <div class="feature-desc">Anything that mutates external systems (publish, send, charge) requires explicit human approval. Dry-run is the default.</div>
+      <div class="feature-meta"><span>Tiered</span><span>Audit Log</span></div>
+    </div>
+
+    <div class="card feature-card">
+      <span class="feature-tag p2">P2</span>
+      <div class="feature-icon">INPUT</div>
+      <div class="feature-title">Voice In</div>
+      <div class="feature-desc">Whisper transcribes ambient capture. Daily-note pre-populated with morning brain-dump. Zero typing for inbox.</div>
+      <div class="feature-meta"><span>Whisper</span><span>Push-to-talk</span></div>
+    </div>
+    <div class="card feature-card">
+      <span class="feature-tag p2">P2</span>
+      <div class="feature-icon">INTEL</div>
+      <div class="feature-title">Pattern Spotter</div>
+      <div class="feature-desc">Weekly background job scans daily notes for recurring themes you haven't named yet. Surfaces emergent topics into wiki/.</div>
+      <div class="feature-meta"><span>Reflection</span><span>Auto-Tag</span></div>
+    </div>
+    <div class="card feature-card">
+      <span class="feature-tag p2">P2</span>
+      <div class="feature-icon">UX</div>
+      <div class="feature-title">Embedded Terminal</div>
+      <div class="feature-desc">Claude Code CLI lives inside the dashboard. Drop into raw natural-language ops without leaving the UI.</div>
+      <div class="feature-meta"><span>xterm.js</span><span>CLI</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- PROVIDERS -->
+<section class="section">
+  <div class="sec-head">
+    <span class="sec-head-num">07</span>
+    <h2 class="sec-head-title">Model Providers</h2>
+    <div class="sec-head-rule"></div>
+  </div>
+  <p class="sec-desc">Anthropic primary. Swappable for cost / privacy / capability.</p>
+  <div class="provider-row">
+    <span class="prov-chip primary">Anthropic · Claude 4.7</span>
+    <span class="prov-chip">OpenAI · GPT-5</span>
+    <span class="prov-chip">Google · Gemini</span>
+    <span class="prov-chip">xAI · Grok</span>
+    <span class="prov-chip">NVIDIA · NIM</span>
+    <span class="prov-chip">Ollama · Local</span>
+    <span class="prov-chip">DeepSeek</span>
+    <span class="prov-chip">Mistral</span>
+  </div>
+</section>
+
+<!-- MOATS -->
+<section class="section" id="moats">
+  <div class="sec-head">
+    <span class="sec-head-num">08</span>
+    <h2 class="sec-head-title">Why This Wins</h2>
+    <div class="sec-head-rule"></div>
+  </div>
+  <p class="sec-desc">Most AI productivity tools fight context. This stack <em>is</em> context.</p>
+
+  <div class="moat-grid">
+    <div class="moat-card">
+      <div class="moat-num">01</div>
+      <div class="moat-title">Memory You Can See</div>
+      <div class="moat-desc">Opaque chat memory is a black box. Markdown files are inspectable, editable, diff-able. You always know what the agent knows.</div>
+    </div>
+    <div class="moat-card">
+      <div class="moat-num">02</div>
+      <div class="moat-title">Compounds With Time</div>
+      <div class="moat-desc">Every note makes the next session smarter. The vault is a personal model fine-tune you write by hand.</div>
+    </div>
+    <div class="moat-card">
+      <div class="moat-num">03</div>
+      <div class="moat-title">Portable Forever</div>
+      <div class="moat-desc">It's a folder of .md files. Switch tools, switch models, switch decades. The corpus survives every vendor.</div>
+    </div>
+    <div class="moat-card">
+      <div class="moat-num">04</div>
+      <div class="moat-title">Approval-Gated By Default</div>
+      <div class="moat-desc">No silent sends, no surprise charges. The agent proposes; you commit. Dry-run is a feature, not a flag.</div>
+    </div>
+  </div>
+</section>
+
+<!-- COMPARE -->
+<section class="section" id="compare">
+  <div class="sec-head">
+    <span class="sec-head-num">09</span>
+    <h2 class="sec-head-title">vs Your AgenticOS Build</h2>
+    <div class="sec-head-rule"></div>
+  </div>
+  <p class="sec-desc">The video's design is functionally the same family as your AgenticOS — and most of the bones are already in your repo. Below: what's there, what to wire next.</p>
+
+  <table class="compare-table">
+    <thead>
+      <tr><th>Capability</th><th>This Design</th><th>Your AgenticOS Today</th><th>Gap to Close</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Markdown vault as memory</td><td class="ok">Core</td><td class="partial">DB notes, not FS vault</td><td>Bridge to real Obsidian folder + file-watcher</td></tr>
+      <tr><td>Claude Code agent</td><td class="ok">Conductor</td><td class="ok">lib/agent/cli.ts exists</td><td>Wire CLI streaming into prompt console</td></tr>
+      <tr><td>Slash command bar</td><td class="ok">10 routines</td><td class="partial">Scheduler + skills present</td><td>Add the 10 named routines as skills</td></tr>
+      <tr><td>Wikilink graph</td><td class="ok">First-class</td><td class="no">Missing</td><td>Parse [[links]], build graph index</td></tr>
+      <tr><td>Hybrid retrieval</td><td class="ok">BM25 + vector</td><td class="no">Missing</td><td>sqlite-vss index over vault</td></tr>
+      <tr><td>Multi-provider</td><td class="ok">8 providers</td><td class="ok">Already shipped (NVIDIA, Ollama, etc.)</td><td>None</td></tr>
+      <tr><td>Approval gates</td><td class="ok">Default-on</td><td class="ok">lib/permissions/policy.ts</td><td>None</td></tr>
+      <tr><td>Token-burn meter</td><td class="ok">Live</td><td class="partial">lib/billing/ exists</td><td>Wire to dashboard widget</td></tr>
+      <tr><td>Platform metrics (YT/IG/TT)</td><td class="ok">Live</td><td class="no">Missing</td><td>Add YT/IG/TT API adapters as providers</td></tr>
+      <tr><td>Content cascade swarm</td><td class="ok">Multi-agent</td><td class="partial">lib/agent/swarm.ts exists</td><td>Author the cascade skill</td></tr>
+      <tr><td>Memory promotion (raw→wiki)</td><td class="ok">Auto</td><td class="no">Missing</td><td>Background job + ref-count heuristic</td></tr>
+      <tr><td>Daily-note templating</td><td class="ok">Auto</td><td class="no">Missing</td><td>Scheduled creator + template loader</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ROADMAP -->
+<section class="section" id="roadmap">
+  <div class="sec-head">
+    <span class="sec-head-num">10</span>
+    <h2 class="sec-head-title">Roadmap · From Now to Done</h2>
+    <div class="sec-head-rule"></div>
+  </div>
+  <p class="sec-desc">Order chosen so each phase ships value standalone, not "everything or nothing."</p>
+
+  <div class="roadmap">
+    <div class="phase-card phase-1">
+      <div class="phase-tag">Phase 01 · Foundation</div>
+      <div class="phase-title">Vault Bridge</div>
+      <ul class="phase-list">
+        <li class="done">Local DB notes</li>
+        <li class="done">Skills runner</li>
+        <li class="done">Multi-provider</li>
+        <li>FS-backed vault (point at Obsidian dir)</li>
+        <li>Chokidar file-watch</li>
+        <li>Frontmatter parser</li>
+        <li>Wikilink graph</li>
+      </ul>
+    </div>
+    <div class="phase-card phase-2">
+      <div class="phase-tag">Phase 02 · Brain</div>
+      <div class="phase-title">Retrieval Layer</div>
+      <ul class="phase-list">
+        <li>Embedding index (sqlite-vss)</li>
+        <li>BM25 over markdown</li>
+        <li>Hybrid scorer</li>
+        <li>Graph-walk expansion</li>
+        <li>Context budget guard</li>
+        <li>CLAUDE.md loader</li>
+      </ul>
+    </div>
+    <div class="phase-card phase-3">
+      <div class="phase-tag">Phase 03 · Hands</div>
+      <div class="phase-title">Command Bar</div>
+      <ul class="phase-list">
+        <li>/plan-today + /plan-tomorrow</li>
+        <li>/morning-brief + /inbox-brief</li>
+        <li>/deep-research</li>
+        <li>/content-cascade (swarm)</li>
+        <li>/yt-pipeline</li>
+        <li>/weekly-review</li>
+        <li>/vault-cleanup</li>
+      </ul>
+    </div>
+    <div class="phase-card phase-4">
+      <div class="phase-tag">Phase 04 · Eyes</div>
+      <div class="phase-title">Dashboard + Metrics</div>
+      <ul class="phase-list">
+        <li>Token-burn meter wire-up</li>
+        <li>YT / IG / TT API adapters</li>
+        <li>GitHub + HN trending widgets</li>
+        <li>Schedule + task widgets</li>
+        <li>Embedded Claude Code term</li>
+        <li>Voice-in via Whisper</li>
+        <li>Pattern spotter (weekly)</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<footer class="footer">
+  <div class="footer-line">CLAUDE CODE × OBSIDIAN · ARCHITECTURE v1.0</div>
+  <div class="footer-stack">
+    Next.js · TypeScript · SQLite + sqlite-vss · Anthropic SDK · MCP · node-cron · Tailwind · Recharts<br>
+    Inspired by Greg Isenberg + Internet Vin · Built on the AgenticOS skeleton · Local-first · Markdown-native
+  </div>
+</footer>
+
+</div>
+</body>
+</html>

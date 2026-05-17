@@ -5,9 +5,13 @@ import { useState, useTransition } from "react";
 import { ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SkillGrid } from "@/components/dashboard/skill-grid";
-import type { SelectedModelProfile, Skill } from "@/types";
+import type { ModelEndpoint, ReasoningEffort, SelectedModelProfile, Skill, ThinkingLevel } from "@/types";
 
-export function PromptConsole({ skills }: { skills: Skill[] }) {
+function getInitialModel(provider: ModelEndpoint) {
+  return provider.models?.includes(provider.model) ? provider.model : provider.models?.[0] ?? provider.model;
+}
+
+export function PromptConsole({ skills, providers }: { skills: Skill[]; providers: ModelEndpoint[] }) {
   const router = useRouter();
   const params = useSearchParams();
   const initialSkill = skills.find((skill) => skill.id === params.get("skill"));
@@ -22,20 +26,35 @@ export function PromptConsole({ skills }: { skills: Skill[] }) {
 
   function run() {
     startTransition(async () => {
-      const providerId = window.localStorage.getItem("agenticos.activeProvider");
+      const defaultProvider = providers.find((provider) => provider.enabled) ?? providers[0];
+      const providerId = window.localStorage.getItem("agenticos.activeProvider") || defaultProvider?.id;
       const storedModels = window.localStorage.getItem("agenticos.providerModels");
-      let selectedModels: Record<string, string> = {};
+      const storedThinking = window.localStorage.getItem("agenticos.providerThinking");
+      const storedEffort = window.localStorage.getItem("agenticos.providerEffort");
 
-      if (storedModels) {
+      const parseRecord = <T,>(raw: string | null): Record<string, T> => {
+        if (!raw) return {};
         try {
-          selectedModels = JSON.parse(storedModels) as Record<string, string>;
+          return JSON.parse(raw) as Record<string, T>;
         } catch {
-          selectedModels = {};
+          return {};
         }
-      }
+      };
+
+      const selectedModels = parseRecord<string>(storedModels);
+      const thinkingMap = parseRecord<ThinkingLevel>(storedThinking);
+      const effortMap = parseRecord<ReasoningEffort>(storedEffort);
+      const provider = providers.find((item) => item.id === providerId);
+      const model = providerId ? selectedModels[providerId] ?? (provider ? getInitialModel(provider) : undefined) : undefined;
+
       const modelProfile: SelectedModelProfile | undefined =
-        providerId && selectedModels[providerId]
-          ? { providerId, model: selectedModels[providerId] }
+        providerId && model
+          ? {
+              providerId,
+              model,
+              thinking: thinkingMap[providerId],
+              reasoningEffort: effortMap[providerId],
+            }
           : undefined;
       const response = await fetch("/api/runs", {
         method: "POST",

@@ -15,4 +15,9 @@ export const agenticosConfig = {
     dailyRoutines: 25,
   },
   allowedCommandRoots: [process.cwd()],
+  youtubeApiKey: process.env.YOUTUBE_API_KEY,
+  youtubeChannelId: process.env.YOUTUBE_CHANNEL_ID,
+  instagramToken: process.env.INSTAGRAM_TOKEN,
+  instagramAccountId: process.env.INSTAGRAM_ACCOUNT_ID,
+  tiktokToken: process.env.TIKTOK_TOKEN,
 };
