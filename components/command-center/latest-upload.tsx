@@ -4,6 +4,7 @@ interface LatestUploadProps {
   likes?: string;
   comments?: string;
   age?: string;
+  url?: string;
 }
 
 export function LatestUpload({
@@ -12,7 +13,13 @@ export function LatestUpload({
   likes = "-",
   comments = "-",
   age = "NO API KEY",
+  url,
 }: LatestUploadProps) {
+  const PlayInner = (
+    <svg viewBox="0 0 24 24" width="14" height="14">
+      <polygon points="9,6 19,12 9,18" fill="#fff" />
+    </svg>
+  );
   return (
     <div
       className="relative overflow-hidden rounded-[3px] border border-[#5a1818]/60 p-3"
@@ -26,14 +33,27 @@ export function LatestUpload({
       <div className="text-[0.56rem] uppercase tracking-[0.18em] text-[#a8a29a]">Latest Upload</div>
 
       <div className="mt-2 grid grid-cols-[44px_1fr_auto] items-center gap-3">
-        <button
-          type="button"
-          tabIndex={-1}
-          className="flex h-9 w-11 items-center justify-center rounded-[4px] bg-[#ff1c1c] shadow-[0_0_14px_rgba(255,28,28,0.4)] transition hover:brightness-110"
-          aria-label="Play"
-        >
-          <svg viewBox="0 0 24 24" width="14" height="14"><polygon points="9,6 19,12 9,18" fill="#fff" /></svg>
-        </button>
+        {url ? (
+          <a
+            href={url}
+            target="_blank"
+            rel="noreferrer"
+            className="flex h-9 w-11 items-center justify-center rounded-[4px] bg-[#ff1c1c] shadow-[0_0_14px_rgba(255,28,28,0.4)] transition hover:brightness-110"
+            aria-label="Play"
+          >
+            {PlayInner}
+          </a>
+        ) : (
+          <button
+            type="button"
+            disabled
+            className="flex h-9 w-11 items-center justify-center rounded-[4px] bg-[#ff1c1c]/60 shadow-[0_0_14px_rgba(255,28,28,0.4)] transition disabled:cursor-not-allowed"
+            aria-label="Play"
+            title="No video URL"
+          >
+            {PlayInner}
+          </button>
+        )}
 
         <div className="min-w-0">
           <div className="truncate text-[15px] font-bold tracking-[0.02em] text-[#f4f1e8]">{title}</div>

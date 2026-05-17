@@ -1,3 +1,8 @@
+"use client";
+
+import { useRouter } from "next/navigation";
+import { useTransition } from "react";
+import Link from "next/link";
 import { ExternalLink, Play, RotateCw } from "lucide-react";
 import type { RepoItem } from "@/lib/integrations/github-trending";
 import type { HnItem } from "@/lib/integrations/hackernews";
@@ -40,6 +45,9 @@ function nowTime(): string {
 export function ResearchPanel({ repos = defaultRepos, hnItems = defaultHn }: Props) {
   const repoLive = repos !== defaultRepos;
   const hnLive = hnItems !== defaultHn;
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const refresh = () => startTransition(() => router.refresh());
 
   return (
     <div className="space-y-3">
@@ -47,7 +55,7 @@ export function ResearchPanel({ repos = defaultRepos, hnItems = defaultHn }: Pro
         <PanelCard
           title="GitHub Trending"
           live={repoLive}
-          right={<HeaderControls date={nowDate()} />}
+          right={<HeaderControls date={nowDate()} onRefresh={refresh} pending={pending} fullHref="/runs?skill=research" />}
         >
           <ul className="space-y-[10px]">
             {repos.map((r) => (
@@ -81,7 +89,21 @@ export function ResearchPanel({ repos = defaultRepos, hnItems = defaultHn }: Pro
         <PanelCard
           title="Hacker News"
           live={hnLive}
-          right={<span className="text-[0.56rem] uppercase tracking-[0.18em] text-[#6f6a61]">{nowTime()}</span>}
+          right={
+            <div className="flex items-center gap-1">
+              <Pill href="https://news.ycombinator.com/">Full /</Pill>
+              <button
+                type="button"
+                onClick={refresh}
+                disabled={pending}
+                aria-label="Refresh"
+                className="flex h-5 w-5 items-center justify-center rounded-[2px] border border-[#2a302c] bg-[#10120f] text-[#6f6a61] transition hover:border-[#e86f3a] hover:text-[#e86f3a] disabled:opacity-50"
+              >
+                <RotateCw size={9} className={pending ? "animate-spin" : undefined} />
+              </button>
+              <span className="ml-1 text-[0.56rem] uppercase tracking-[0.18em] text-[#6f6a61]">{nowTime()}</span>
+            </div>
+          }
         >
           <ul className="space-y-[10px]">
             {hnItems.map((h) => (
@@ -146,36 +168,65 @@ function PanelCard({
   );
 }
 
-function HeaderControls({ date }: { date: string }) {
+function HeaderControls({
+  date,
+  onRefresh,
+  pending,
+  fullHref,
+}: {
+  date: string;
+  onRefresh: () => void;
+  pending: boolean;
+  fullHref: string;
+}) {
   return (
     <div className="flex items-center gap-1">
-      <Pill>Full /</Pill>
-      <button type="button" className="flex h-5 w-5 items-center justify-center rounded-[2px] border border-[#2a302c] bg-[#10120f] text-[#6f6a61] transition hover:border-[#e86f3a] hover:text-[#e86f3a]">
+      <Pill href={fullHref}>Full /</Pill>
+      <Link
+        href={fullHref}
+        className="flex h-5 w-5 items-center justify-center rounded-[2px] border border-[#2a302c] bg-[#10120f] text-[#6f6a61] transition hover:border-[#e86f3a] hover:text-[#e86f3a]"
+        aria-label="Open detail"
+      >
         <Play size={9} />
-      </button>
-      <button type="button" className="flex h-5 w-5 items-center justify-center rounded-[2px] border border-[#2a302c] bg-[#10120f] text-[#6f6a61] transition hover:border-[#e86f3a] hover:text-[#e86f3a]">
-        <RotateCw size={9} />
+      </Link>
+      <button
+        type="button"
+        onClick={onRefresh}
+        disabled={pending}
+        aria-label="Refresh"
+        className="flex h-5 w-5 items-center justify-center rounded-[2px] border border-[#2a302c] bg-[#10120f] text-[#6f6a61] transition hover:border-[#e86f3a] hover:text-[#e86f3a] disabled:opacity-50"
+      >
+        <RotateCw size={9} className={pending ? "animate-spin" : undefined} />
       </button>
       <span className="ml-1 text-[0.56rem] uppercase tracking-[0.18em] text-[#6f6a61]">{date}</span>
     </div>
   );
 }
 
-function Pill({ children }: { children: React.ReactNode }) {
+function Pill({ children, href }: { children: React.ReactNode; href?: string }) {
+  const cls =
+    "inline-flex h-5 items-center rounded-[2px] border border-[#2a302c] bg-[#10120f] px-2 text-[0.52rem] font-bold uppercase tracking-[0.16em] text-[#a8a29a] transition hover:border-[#e86f3a] hover:text-[#e86f3a]";
+  if (href) {
+    return (
+      <Link href={href} className={cls}>
+        {children}
+      </Link>
+    );
+  }
   return (
-    <button type="button" className="inline-flex h-5 items-center rounded-[2px] border border-[#2a302c] bg-[#10120f] px-2 text-[0.52rem] font-bold uppercase tracking-[0.16em] text-[#a8a29a] transition hover:border-[#e86f3a] hover:text-[#e86f3a]">
+    <button type="button" className={cls}>
       {children}
     </button>
   );
 }
 
 function MorningBrief() {
-  const chips: { label: string; count: number; tone: "amber" | "gray" }[] = [
-    { label: "Headlines", count: 3, tone: "amber" },
-    { label: "Articles", count: 5, tone: "gray" },
-    { label: "X Voices", count: 3, tone: "gray" },
-    { label: "Repos", count: 3, tone: "gray" },
-    { label: "Opps", count: 3, tone: "gray" },
+  const chips: { label: string; count: number; tone: "amber" | "gray"; anchor: string }[] = [
+    { label: "Headlines", count: 3, tone: "amber", anchor: "headlines" },
+    { label: "Articles", count: 5, tone: "gray", anchor: "headlines" },
+    { label: "X Voices", count: 3, tone: "gray", anchor: "headlines" },
+    { label: "Repos", count: 3, tone: "gray", anchor: "headlines" },
+    { label: "Opps", count: 3, tone: "gray", anchor: "headlines" },
   ];
   return (
     <div className="rounded-[3px] border border-[#2a302c] bg-[#0b0d0a] p-3">
@@ -185,9 +236,10 @@ function MorningBrief() {
           <span className="text-[0.56rem] uppercase tracking-[0.18em] text-[#6f6a61]">{nowDate()}</span>
           <div className="flex items-center gap-1">
             {chips.map((c) => (
-              <span
+              <a
                 key={c.label}
-                className={`inline-flex h-5 items-center gap-1 rounded-[2px] border px-2 text-[0.52rem] font-bold uppercase tracking-[0.14em] ${
+                href={`#${c.anchor}`}
+                className={`inline-flex h-5 items-center gap-1 rounded-[2px] border px-2 text-[0.52rem] font-bold uppercase tracking-[0.14em] transition hover:border-[#e86f3a] ${
                   c.tone === "amber"
                     ? "border-[#e86f3a]/40 bg-[#e86f3a]/10 text-[#e86f3a]"
                     : "border-[#2a302c] bg-[#10120f] text-[#a8a29a]"
@@ -195,14 +247,14 @@ function MorningBrief() {
               >
                 <span className={c.tone === "amber" ? "text-[#e86f3a]" : "text-[#f4f1e8]"}>{c.count}</span>
                 {c.label}
-              </span>
+              </a>
             ))}
           </div>
         </div>
-        <Pill>Full /</Pill>
+        <Pill href="/runs?skill=morning-brief">Full /</Pill>
       </div>
 
-      <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-2">
+      <div id="headlines" className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-2">
         <div>
           <div className="mb-2 text-[0.54rem] uppercase tracking-[0.2em] text-[#e86f3a]">$ Headlines</div>
           <ul className="space-y-2">

@@ -1,0 +1,833 @@
+{
+  "schema": "agentic-os.architecture.v1",
+  "generatedAt": "2026-05-17",
+  "project": {
+    "name": "AgenticOS",
+    "description": "Local-first AI operating system for agentic workflows. It coordinates model providers, skill templates, local vault memory, approval gates, integrations, routines, terminal sessions, MCP servers, and durable markdown artifacts.",
+    "workspace": "c:\\project_github\\agentic-os",
+    "mainGoal": "A local-first command center for agentic workflows with shared memory, run history, approval gates, provider selection, social/research dashboards, and vault-backed artifacts.",
+    "sourceInventory": {
+      "localTypeScriptFiles": 131,
+      "trackedTypeScriptFiles": 102,
+      "approxTypeScriptLoc": 11496,
+      "untrackedSourceFiles": 29,
+      "ignoredSourceFiles": 0,
+      "currentRuntimeVaultIgnoreRule": "/vault/",
+      "untrackedSourceFolders": [
+        "app/api/vault",
+        "app/vault",
+        "components/vault",
+        "lib/vault",
+        "app/api/tests",
+        "app/tests",
+        "components/tests",
+        "tests"
+      ],
+      "trackedStatusObserved": [
+        ".gitignore modified in the worktree to use `/vault/`",
+        "Multiple app/component/config files were modified before final validation and were not created by this analysis",
+        "Vault source folders are now untracked rather than ignored",
+        "Test runner source and tests are untracked",
+        "This analysis created only agenticos-architecture-map.html and agenticos-architecture-agent.json"
+      ]
+    }
+  },
+  "techStack": {
+    "framework": "Next.js 16.2.4 App Router",
+    "runtime": "Node.js runtime for API routes and filesystem/PTY work",
+    "language": "TypeScript 5.9.3 strict",
+    "ui": [
+      "React 19.2.5",
+      "Tailwind CSS 4 via @tailwindcss/postcss",
+      "lucide-react",
+      "recharts",
+      "react-markdown",
+      "framer-motion"
+    ],
+    "testing": [
+      "Vitest 2.1.9",
+      "Unit tests under tests/unit",
+      "Browser-accessible test runner page at /tests",
+      "Test runner APIs at /api/tests and /api/tests/files"
+    ],
+    "storage": [
+      "SQL.js SQLite file at .agenticos/agenticos.sqlite",
+      "Local markdown vault at vault/",
+      "Portable project context at .agenticos-project/",
+      "Browser localStorage for active provider/model settings"
+    ],
+    "agentAndTools": [
+      "Model provider registry",
+      "Cloud LLM calls",
+      "Local Ollama calls",
+      "CLI providers: Claude Code, Codex, Gemini CLI, GitHub Copilot CLI",
+      "node-pty terminal sessions",
+      "MCP stdio bridge",
+      "node-cron scheduler"
+    ],
+    "validation": [
+      "zod request schemas",
+      "TypeScript strict typecheck"
+    ],
+    "scripts": {
+      "dev": "next dev",
+      "build": "next build",
+      "lint": "eslint",
+      "typecheck": "tsc --noEmit",
+      "test": "vitest run",
+      "test:watch": "vitest",
+      "test:ui": "vitest --ui"
+    }
+  },
+  "entryPoints": {
+    "pages": [
+      {
+        "route": "/",
+        "file": "app/page.tsx",
+        "purpose": "Redirects to /dashboard."
+      },
+      {
+        "route": "/dashboard",
+        "file": "app/dashboard/page.tsx",
+        "purpose": "Primary prompt console, skill selection, metrics, activity, integrations, recent vault files."
+      },
+      {
+        "route": "/command-center",
+        "file": "app/command-center/page.tsx",
+        "purpose": "Operator dashboard for token burn, social metrics, latest upload, tasks, schedule, research feed, and terminal pane."
+      },
+      {
+        "route": "/vault",
+        "file": "app/vault/page.tsx",
+        "purpose": "Local vault file browser, note creation, graph stats, backlinks, promotion candidates, conflicts, patterns, memory index.",
+        "trackingRisk": "Untracked at final validation."
+      },
+      {
+        "route": "/runs",
+        "file": "app/runs/page.tsx",
+        "purpose": "Run ledger."
+      },
+      {
+        "route": "/runs/[id]",
+        "file": "app/runs/[id]/page.tsx",
+        "purpose": "Run detail, plan preview, steps, tool calls, artifacts, final markdown output, SSE poller."
+      },
+      {
+        "route": "/approvals",
+        "file": "app/approvals/page.tsx",
+        "purpose": "Approval inbox and history."
+      },
+      {
+        "route": "/integrations",
+        "file": "app/integrations/page.tsx",
+        "purpose": "Tool permission center from seeded/runtime integrations."
+      },
+      {
+        "route": "/routines",
+        "file": "app/routines/page.tsx",
+        "purpose": "Routine schedule and manual run/toggle controls."
+      },
+      {
+        "route": "/skills",
+        "file": "app/skills/page.tsx",
+        "purpose": "Skill registry display."
+      },
+      {
+        "route": "/settings",
+        "file": "app/settings/page.tsx",
+        "purpose": "Runtime paths, budgets, provider profile controls, project context manifest, permission defaults."
+      },
+      {
+        "route": "/tests",
+        "file": "app/tests/page.tsx",
+        "purpose": "Vitest-backed audit suite UI for unit test files and recent results.",
+        "trackingRisk": "Untracked at final validation."
+      }
+    ],
+    "apiRoutes": [
+      {
+        "route": "/api/runs",
+        "methods": ["GET", "POST"],
+        "file": "app/api/runs/route.ts",
+        "purpose": "List runs or create a run and start background workflow processing.",
+        "dependencies": ["lib/db/repositories.ts", "lib/agent/engine.ts"]
+      },
+      {
+        "route": "/api/runs/[id]",
+        "methods": ["GET"],
+        "file": "app/api/runs/[id]/route.ts",
+        "purpose": "Export one run plus plan JSON."
+      },
+      {
+        "route": "/api/runs/[id]/stream",
+        "methods": ["GET"],
+        "file": "app/api/runs/[id]/stream/route.ts",
+        "purpose": "Server-sent event polling stream for run status, steps, and final output."
+      },
+      {
+        "route": "/api/runs/[id]/retry",
+        "methods": ["POST"],
+        "file": "app/api/runs/[id]/retry/route.ts",
+        "purpose": "Replay an existing run prompt/skill in dry-run mode."
+      },
+      {
+        "route": "/api/approvals",
+        "methods": ["GET", "PATCH"],
+        "file": "app/api/approvals/route.ts",
+        "purpose": "List approvals or update approval status."
+      },
+      {
+        "route": "/api/routines",
+        "methods": ["GET", "PATCH"],
+        "file": "app/api/routines/route.ts",
+        "purpose": "List routine overview, toggle routines, or run a routine immediately."
+      },
+      {
+        "route": "/api/scheduler",
+        "methods": ["GET", "POST"],
+        "file": "app/api/scheduler/route.ts",
+        "purpose": "Start or reload node-cron routine scheduler."
+      },
+      {
+        "route": "/api/skills",
+        "methods": ["GET"],
+        "file": "app/api/skills/route.ts",
+        "purpose": "Return seeded skills."
+      },
+      {
+        "route": "/api/metrics",
+        "methods": ["GET"],
+        "file": "app/api/metrics/route.ts",
+        "purpose": "Return derived usage/activity/integration metrics from SQLite."
+      },
+      {
+        "route": "/api/command-center/tasks",
+        "methods": ["GET", "POST"],
+        "file": "app/api/command-center/tasks/route.ts",
+        "purpose": "Read, add, and toggle markdown-backed command center tasks."
+      },
+      {
+        "route": "/api/terminal/sessions",
+        "methods": ["GET", "POST"],
+        "file": "app/api/terminal/sessions/route.ts",
+        "purpose": "List CLI adapters and live sessions or create a node-pty session."
+      },
+      {
+        "route": "/api/terminal/[sessionId]",
+        "methods": ["GET", "DELETE"],
+        "file": "app/api/terminal/[sessionId]/route.ts",
+        "purpose": "Read session metadata or kill a terminal session."
+      },
+      {
+        "route": "/api/terminal/[sessionId]/stream",
+        "methods": ["GET"],
+        "file": "app/api/terminal/[sessionId]/stream/route.ts",
+        "purpose": "SSE stream of base64 encoded PTY output."
+      },
+      {
+        "route": "/api/terminal/[sessionId]/input",
+        "methods": ["POST"],
+        "file": "app/api/terminal/[sessionId]/input/route.ts",
+        "purpose": "Send raw keystrokes or line input to a PTY."
+      },
+      {
+        "route": "/api/mcp",
+        "methods": ["GET", "POST", "DELETE"],
+        "file": "app/api/mcp/route.ts",
+        "purpose": "Connect, list, and disconnect MCP stdio servers."
+      },
+      {
+        "route": "/api/model-providers/[provider]/models",
+        "methods": ["GET"],
+        "file": "app/api/model-providers/[provider]/models/route.ts",
+        "purpose": "Return provider model catalog from static config, CLI availability, Ollama, or NVIDIA."
+      },
+      {
+        "route": "/api/model-providers/[provider]/test",
+        "methods": ["POST"],
+        "file": "app/api/model-providers/[provider]/test/route.ts",
+        "purpose": "Health check CLI/cloud/local model provider connectivity."
+      },
+      {
+        "route": "/api/tests",
+        "methods": ["GET", "POST"],
+        "file": "app/api/tests/route.ts",
+        "purpose": "Read last Vitest JSON results or spawn `npm run test --silent`.",
+        "trackingRisk": "Untracked at final validation."
+      },
+      {
+        "route": "/api/tests/files",
+        "methods": ["GET"],
+        "file": "app/api/tests/files/route.ts",
+        "purpose": "List test files under tests/.",
+        "trackingRisk": "Untracked at final validation."
+      },
+      {
+        "route": "/api/vault",
+        "methods": ["GET", "POST"],
+        "file": "app/api/vault/route.ts",
+        "purpose": "List vault files/recent files or create a note and memory index entry.",
+        "trackingRisk": "Untracked at final validation."
+      },
+      {
+        "route": "/api/vault/graph",
+        "methods": ["GET", "POST"],
+        "file": "app/api/vault/graph/route.ts",
+        "purpose": "Read graph stats/backlinks/outlinks/orphans/top nodes or reindex vault graph.",
+        "trackingRisk": "Untracked at final validation."
+      },
+      {
+        "route": "/api/vault/conflict",
+        "methods": ["GET"],
+        "file": "app/api/vault/conflict/route.ts",
+        "purpose": "Detect duplicate titles, broken links, and dead references.",
+        "trackingRisk": "Untracked at final validation."
+      },
+      {
+        "route": "/api/vault/patterns",
+        "methods": ["GET"],
+        "file": "app/api/vault/patterns/route.ts",
+        "purpose": "Detect recurring terms in daily notes.",
+        "trackingRisk": "Untracked at final validation."
+      },
+      {
+        "route": "/api/vault/promote",
+        "methods": ["GET", "POST"],
+        "file": "app/api/vault/promote/route.ts",
+        "purpose": "List raw-note promotion candidates or move a raw note into wiki.",
+        "trackingRisk": "Untracked at final validation."
+      },
+      {
+        "route": "/api/vault/autotag",
+        "methods": ["POST"],
+        "file": "app/api/vault/autotag/route.ts",
+        "purpose": "Heuristically patch frontmatter tags in a vault file.",
+        "trackingRisk": "Untracked at final validation."
+      }
+    ],
+    "runtimeSideEffects": [
+      {
+        "file": "app/layout.tsx",
+        "lines": [17, 18],
+        "effect": "Starts scheduler and vault graph indexing at module load."
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "ui-shell",
+      "name": "Application Shell",
+      "kind": "frontend",
+      "files": ["app/layout.tsx", "components/layout/app-shell.tsx", "components/layout/command-palette.tsx"],
+      "responsibilities": ["Global layout", "Navigation", "Command palette", "Startup side effects"],
+      "dependsOn": ["scheduler", "vault-graph"]
+    },
+    {
+      "id": "dashboard",
+      "name": "Dashboard and Prompt Console",
+      "kind": "frontend",
+      "files": ["app/dashboard/page.tsx", "components/dashboard/prompt-console.tsx", "components/dashboard/skill-grid.tsx", "components/dashboard/sidebar-panels.tsx"],
+      "responsibilities": ["Skill selection", "Prompt submission", "Provider/model profile from localStorage", "Usage metrics", "Recent vault files"],
+      "dependsOn": ["api-runs", "skills-registry", "db-repositories", "vault-service", "model-providers"]
+    },
+    {
+      "id": "command-center",
+      "name": "Command Center",
+      "kind": "frontend plus server data aggregator",
+      "files": ["app/command-center/page.tsx", "components/command-center/*", "lib/command-center/data.ts", "lib/command-center/tasks.ts"],
+      "responsibilities": ["Operational dashboard", "Social metrics", "Research feed", "Daily tasks", "Schedule view", "Embedded terminal"],
+      "dependsOn": ["integrations-live-readers", "db-repositories", "vault-service", "terminal-manager"]
+    },
+    {
+      "id": "runs-ledger",
+      "name": "Runs Ledger",
+      "kind": "frontend",
+      "files": ["app/runs/page.tsx", "app/runs/[id]/page.tsx", "components/runs/run-poller.tsx"],
+      "responsibilities": ["Run list", "Run detail", "SSE status updates", "JSON export link", "Markdown final output rendering"],
+      "dependsOn": ["api-runs", "db-repositories"]
+    },
+    {
+      "id": "approvals-ui",
+      "name": "Approvals UI",
+      "kind": "frontend",
+      "files": ["app/approvals/page.tsx", "components/approvals/approval-actions.tsx"],
+      "responsibilities": ["Approval inbox", "Approve/reject status patching"],
+      "dependsOn": ["api-approvals", "db-repositories"]
+    },
+    {
+      "id": "settings-ui",
+      "name": "Settings and Provider Profiles",
+      "kind": "frontend",
+      "files": ["app/settings/page.tsx", "components/settings/model-provider-profiles.tsx"],
+      "responsibilities": ["Provider health checks", "Model catalog refresh", "Local profile persistence", "Project context manifest"],
+      "dependsOn": ["model-providers", "project-context"]
+    },
+    {
+      "id": "vault-ui",
+      "name": "Vault UI",
+      "kind": "frontend",
+      "files": ["app/vault/page.tsx", "components/vault/*"],
+      "responsibilities": ["File browser", "Manual note creation", "Graph stats/reindex", "Backlinks/outlinks", "Conflict scan", "Pattern scan", "Raw-to-wiki promotion"],
+      "dependsOn": ["vault-service", "vault-graph", "db-repositories"],
+      "trackingRisk": "Untracked at final validation."
+    },
+    {
+      "id": "tests-ui",
+      "name": "Tests UI and Vitest Runner",
+      "kind": "frontend plus backend process service",
+      "files": ["app/tests/page.tsx", "components/tests/tests-panel.tsx", "app/api/tests/route.ts", "app/api/tests/files/route.ts", "tests/unit/*.test.ts", "vitest.config.ts"],
+      "responsibilities": ["List unit test files", "Run Vitest through npm from an API route", "Read tests/.last-results.json", "Display suite/assertion results and command output"],
+      "dependsOn": ["node-child-process", "vitest"],
+      "trackingRisk": "Untracked at final validation."
+    },
+    {
+      "id": "agent-engine",
+      "name": "Agent Run Engine",
+      "kind": "backend domain service",
+      "files": ["lib/agent/engine.ts", "lib/agent/swarm.ts"],
+      "responsibilities": ["Run creation", "Plan creation", "Risk assessment", "Workflow step logging", "Optional swarm execution", "Final output generation", "Vault artifact persistence", "Memory indexing"],
+      "dependsOn": ["skills-registry", "llm-router", "project-context", "vault-service", "memory-indexer", "permissions-policy", "billing-pricing", "db-repositories"]
+    },
+    {
+      "id": "llm-router",
+      "name": "LLM Router and Providers",
+      "kind": "backend integration service",
+      "files": ["lib/agent/llm.ts", "lib/agent/providers.ts", "lib/agent/cli.ts"],
+      "responsibilities": ["Provider registry", "Cloud API generation", "Ollama generation", "CLI generation", "Token estimation", "Thinking/reasoning profile handling"],
+      "externalServices": ["Anthropic", "OpenAI", "OpenRouter", "Gemini", "Grok/xAI", "NVIDIA NIM", "Ollama", "Claude Code CLI", "Codex CLI", "Gemini CLI", "GitHub Copilot CLI"]
+    },
+    {
+      "id": "db-repositories",
+      "name": "SQL.js Repository Layer",
+      "kind": "backend persistence",
+      "files": ["lib/db/client.ts", "lib/db/repositories.ts"],
+      "responsibilities": ["Initialize schema", "Seed integrations and routines", "Persist runs/steps/tool calls/approvals", "Persist memory index", "Persist vault graph", "Persist audit logs"],
+      "dataStores": ["agenticos.sqlite"]
+    },
+    {
+      "id": "vault-service",
+      "name": "Vault Filesystem Service",
+      "kind": "backend filesystem",
+      "files": ["lib/vault/service.ts", "lib/vault/graph.ts", "lib/vault/conflict.ts", "lib/vault/promote.ts", "lib/vault/patterns.ts"],
+      "responsibilities": ["Ensure vault folders", "Resolve safe vault paths", "List files", "Load recent vault context", "Write markdown with frontmatter", "Extract wikilinks", "Index vault graph", "Promote notes", "Detect conflicts and patterns"],
+      "dataStores": ["vault/", "agenticos.sqlite vault_nodes/vault_links"],
+      "trackingRisk": "Untracked at final validation."
+    },
+    {
+      "id": "terminal-manager",
+      "name": "Terminal Manager",
+      "kind": "backend process service",
+      "files": ["lib/terminal/adapters.ts", "lib/terminal/manager.ts", "components/command-center/terminal-pane.tsx"],
+      "responsibilities": ["CLI discovery", "PTY session lifecycle", "Raw input", "Output history", "SSE output streaming", "Shell fallback"],
+      "externalProcesses": ["claude", "codex", "gemini", "copilot", "ollama", "aider", "amp", "shell"]
+    },
+    {
+      "id": "scheduler",
+      "name": "Scheduler",
+      "kind": "backend process service",
+      "files": ["lib/scheduler/worker.ts", "lib/scheduler/routines.ts", "app/api/scheduler/route.ts"],
+      "responsibilities": ["Natural schedule parsing", "node-cron task registration", "Routine firing", "Manual reload"],
+      "dependsOn": ["db-repositories", "agent-engine"]
+    },
+    {
+      "id": "integrations-live-readers",
+      "name": "Live Integration Readers",
+      "kind": "backend integration service",
+      "files": ["lib/integrations/youtube.ts", "lib/integrations/instagram.ts", "lib/integrations/tiktok.ts", "lib/integrations/hackernews.ts", "lib/integrations/github-trending.ts", "lib/integrations/adapters.ts"],
+      "responsibilities": ["YouTube channel/video stats", "Instagram stats", "TikTok stats", "Hacker News top stories", "GitHub trending scrape", "Mock adapter map"],
+      "externalServices": ["YouTube Data API", "Meta Graph API", "TikTok Open API", "Hacker News Firebase API", "github.com/trending"]
+    },
+    {
+      "id": "mcp-bridge",
+      "name": "MCP Bridge",
+      "kind": "backend process integration",
+      "files": ["lib/mcp/bridge.ts", "app/api/mcp/route.ts"],
+      "responsibilities": ["Spawn MCP stdio process", "Initialize JSON-RPC session", "List tools", "Risk-classify tool metadata", "Call tools from service API"],
+      "externalProcesses": ["User-supplied MCP command"]
+    },
+    {
+      "id": "skills-registry",
+      "name": "Skills Registry",
+      "kind": "domain model",
+      "files": ["lib/skills/registry.ts", "data/seed-skills.ts", "types/skill.ts"],
+      "responsibilities": ["61 seeded skills", "Skill category grouping", "Prompt classification", "Skill templates/risk/integration/output metadata"]
+    },
+    {
+      "id": "project-context",
+      "name": "Portable Project Context Loader",
+      "kind": "domain service",
+      "files": ["lib/agent/project-context.ts", ".agenticos-project/**/*.md"],
+      "responsibilities": ["Find markdown project intelligence files", "Prioritize categories", "Clip per-file and total context", "Inject into model calls"]
+    }
+  ],
+  "dataStores": [
+    {
+      "id": "agenticos-sqlite",
+      "type": "SQL.js SQLite file",
+      "path": ".agenticos/agenticos.sqlite",
+      "owner": "lib/db/client.ts",
+      "tables": ["runs", "run_steps", "tool_calls", "approvals", "memory_index", "integrations", "routines", "audit_logs", "vault_nodes", "vault_links"],
+      "indexes": ["idx_vault_links_source", "idx_vault_links_target"],
+      "constraints": ["Single-process in-memory Database singleton", "Full DB export on every save", "No migration framework", "No cross-process lock"]
+    },
+    {
+      "id": "vault",
+      "type": "Local markdown filesystem",
+      "path": "vault/",
+      "owner": "lib/vault/service.ts",
+      "folders": ["raw", "wiki", "projects", "content", "daily", "runs", "drafts", "memory", "config", "attachments"],
+      "usage": ["Generated run artifacts", "Manual notes", "Daily tasks", "Recent vault context", "Obsidian graph/wikilinks"]
+    },
+    {
+      "id": "project-context",
+      "type": "Versioned markdown instruction context",
+      "path": ".agenticos-project/",
+      "filesObserved": 28,
+      "usage": ["Injected into model context by lib/agent/project-context.ts"]
+    },
+    {
+      "id": "browser-local-storage",
+      "type": "Browser storage",
+      "keys": ["agenticos.activeProvider", "agenticos.providerModels", "agenticos.providerThinking", "agenticos.providerEffort"],
+      "owner": "components/settings/model-provider-profiles.tsx and components/dashboard/prompt-console.tsx"
+    }
+  ],
+  "externalServices": [
+    {
+      "name": "Ollama",
+      "kind": "local HTTP and CLI",
+      "baseUrl": "http://127.0.0.1:11434",
+      "env": ["OLLAMA_MODEL", "OLLAMA_CLI_PATH"]
+    },
+    {
+      "name": "NVIDIA NIM",
+      "kind": "OpenAI-compatible cloud API",
+      "baseUrl": "https://integrate.api.nvidia.com/v1",
+      "env": ["NVIDIA_API_KEY"]
+    },
+    {
+      "name": "OpenAI",
+      "kind": "Cloud model API",
+      "baseUrl": "https://api.openai.com/v1",
+      "env": ["OPENAI_API_KEY"]
+    },
+    {
+      "name": "Anthropic",
+      "kind": "Cloud model API",
+      "baseUrl": "https://api.anthropic.com/v1",
+      "env": ["ANTHROPIC_API_KEY"]
+    },
+    {
+      "name": "Gemini",
+      "kind": "Cloud model API",
+      "baseUrl": "https://generativelanguage.googleapis.com/v1beta",
+      "env": ["GEMINI_API_KEY"]
+    },
+    {
+      "name": "OpenRouter",
+      "kind": "OpenAI-compatible cloud API",
+      "baseUrl": "https://openrouter.ai/api/v1",
+      "env": ["OPENROUTER_API_KEY"]
+    },
+    {
+      "name": "Grok/xAI",
+      "kind": "OpenAI-compatible cloud API",
+      "baseUrl": "https://api.x.ai/v1",
+      "env": ["GROK_API_KEY", "XAI_API_KEY"]
+    },
+    {
+      "name": "YouTube Data API",
+      "kind": "read-only social analytics",
+      "env": ["YOUTUBE_API_KEY", "YOUTUBE_CHANNEL_ID"]
+    },
+    {
+      "name": "Meta Graph API",
+      "kind": "read-only Instagram analytics",
+      "env": ["INSTAGRAM_TOKEN", "INSTAGRAM_ACCOUNT_ID"]
+    },
+    {
+      "name": "TikTok Open API",
+      "kind": "read-only TikTok analytics",
+      "env": ["TIKTOK_TOKEN"]
+    },
+    {
+      "name": "Hacker News Firebase API",
+      "kind": "public research feed"
+    },
+    {
+      "name": "GitHub Trending",
+      "kind": "HTML scrape of github.com/trending"
+    }
+  ],
+  "dataFlows": [
+    {
+      "id": "run-lifecycle",
+      "name": "Prompt to durable run artifact",
+      "steps": [
+        "User enters prompt or selects skill in components/dashboard/prompt-console.tsx",
+        "Client reads provider/model profile from localStorage",
+        "POST /api/runs validates body with zod",
+        "lib/agent/engine.startRun inserts initial run and plan in SQLite",
+        "executeWorkflow runs asynchronously in the same Node process",
+        "Engine loads memory index, recent vault context, project context, and selected skill",
+        "Engine logs run steps/tool calls, then calls generateWithModel or runSwarm",
+        "Provider adapter calls cloud/local/CLI model or falls back to mock summary on failure",
+        "Engine writes markdown artifact through lib/vault/service.writeVaultMarkdown",
+        "Engine indexes artifact through lib/memory/indexer.ts and updates run status/cost/tokens",
+        "Run detail page listens to /api/runs/[id]/stream for status/step/final events"
+      ],
+      "primaryFiles": ["components/dashboard/prompt-console.tsx", "app/api/runs/route.ts", "lib/agent/engine.ts", "lib/agent/llm.ts", "lib/vault/service.ts", "lib/db/repositories.ts"]
+    },
+    {
+      "id": "terminal-session",
+      "name": "Browser terminal to local CLI process",
+      "steps": [
+        "TerminalPane fetches /api/terminal/sessions for adapter availability",
+        "POST /api/terminal/sessions creates a node-pty session in lib/terminal/manager.ts",
+        "PTY starts selected CLI or shell fallback with cwd set to vault path",
+        "Browser opens /api/terminal/[sessionId]/stream SSE",
+        "Server base64-encodes PTY output chunks",
+        "Browser sends raw xterm keystrokes to /api/terminal/[sessionId]/input"
+      ],
+      "primaryFiles": ["components/command-center/terminal-pane.tsx", "app/api/terminal/sessions/route.ts", "app/api/terminal/[sessionId]/stream/route.ts", "lib/terminal/manager.ts"]
+    },
+    {
+      "id": "command-center-aggregation",
+      "name": "Command center dashboard aggregation",
+      "steps": [
+        "app/command-center/page.tsx calls getCommandCenterData",
+        "Aggregator reads runs/routines/tasks from SQLite and vault markdown",
+        "Aggregator reads YouTube, Instagram, TikTok, Hacker News, and GitHub Trending concurrently",
+        "Missing credentials return null and render not-connected states"
+      ],
+      "primaryFiles": ["lib/command-center/data.ts", "lib/command-center/tasks.ts", "lib/integrations/*.ts"]
+    },
+    {
+      "id": "vault-graph",
+      "name": "Vault graph indexing and memory operations",
+      "steps": [
+        "app/layout.tsx starts indexVaultGraph at module load",
+        "Vault graph walks vault markdown files and extracts [[wikilinks]]",
+        "batchUpsertVaultGraph writes vault_nodes and vault_links tables",
+        "Vault UI and /api/vault/graph expose stats, backlinks, outlinks, orphans, and top nodes",
+        "Manual note creation writes markdown then indexes a memory row"
+      ],
+      "primaryFiles": ["app/layout.tsx", "lib/vault/graph.ts", "lib/vault/service.ts", "lib/db/repositories.ts", "app/api/vault/graph/route.ts"]
+    },
+    {
+      "id": "routine-scheduler",
+      "name": "Scheduled routine execution",
+      "steps": [
+        "app/layout.tsx and /api/scheduler can start scheduler",
+        "lib/scheduler/worker.ts parses natural schedule strings into cron expressions",
+        "node-cron fires enabled routines",
+        "Routine execution logs audit entry then calls createAndRunWorkflow",
+        "Workflow output persists like a manual run"
+      ],
+      "primaryFiles": ["app/layout.tsx", "app/api/scheduler/route.ts", "lib/scheduler/worker.ts", "lib/agent/engine.ts"]
+    },
+    {
+      "id": "approval-status",
+      "name": "Approval request status update",
+      "steps": [
+        "Engine creates ApprovalRequest for non-dry-run plan steps that require approval",
+        "Approvals page lists approvals from SQLite",
+        "PATCH /api/approvals updates status and resolved_at",
+        "No code path resumes or executes a blocked tool call after approval"
+      ],
+      "primaryFiles": ["lib/agent/engine.ts", "app/approvals/page.tsx", "app/api/approvals/route.ts", "lib/db/repositories.ts"]
+    },
+    {
+      "id": "mcp-registration",
+      "name": "MCP server registration",
+      "steps": [
+        "POST /api/mcp accepts id, command, args, env",
+        "lib/mcp/bridge.ts spawns command with stdio pipes",
+        "Bridge sends initialize JSON-RPC frame",
+        "GET /api/mcp lists connected servers and tools",
+        "Tools are risk-classified by name/description only"
+      ],
+      "primaryFiles": ["app/api/mcp/route.ts", "lib/mcp/bridge.ts", "lib/permissions/policy.ts"]
+    }
+  ],
+  "architectureDecisions": [
+    {
+      "decision": "Local-first persistence",
+      "evidence": "README.md and agenticos.config.ts place vault and SQLite under the local workspace by default.",
+      "tradeoff": "Fast local iteration and private artifacts, but multi-user, serverless, backup, and concurrency require a separate production persistence plan."
+    },
+    {
+      "decision": "Mock-first integration model",
+      "evidence": "data/seed-integrations.ts seeds many mock integrations; lib/integrations/adapters.ts returns mock adapters.",
+      "tradeoff": "UI and workflows stay usable without credentials, but real write/read semantics are not implemented for most adapters."
+    },
+    {
+      "decision": "Durable markdown artifacts",
+      "evidence": "lib/agent/engine.ts writes final output through writeVaultMarkdown and indexes it through indexGeneratedArtifact.",
+      "tradeoff": "Outputs survive sessions and can feed memory, but vault scans can become expensive without caching/index invalidation."
+    },
+    {
+      "decision": "Provider abstraction around model endpoints and CLIs",
+      "evidence": "lib/agent/providers.ts registry and lib/agent/llm.ts router.",
+      "tradeoff": "Simple provider switching, but provider-specific payloads, model catalogs, costs, and failure modes are hardcoded."
+    },
+    {
+      "decision": "Approval gate modeled as persisted request records",
+      "evidence": "approvals table plus lib/agent/engine.ts insertApproval.",
+      "tradeoff": "Clear audit surface, but approval status is not connected to a resumable executor."
+    },
+    {
+      "decision": "Portable markdown project intelligence",
+      "evidence": ".agenticos-project and lib/agent/project-context.ts.",
+      "tradeoff": "Provider-agnostic behavior is easy to edit/version, but context size is clipped and no semantic retrieval is used."
+    }
+  ],
+  "constraints": [
+    {
+      "id": "node-runtime-required",
+      "description": "Filesystem, child_process, node-pty, SQL.js, and node-cron require Node runtime. Edge runtime is not viable for core routes."
+    },
+    {
+      "id": "local-only-default",
+      "description": "Runtime assumes local disk access to vault/ and .agenticos/. Deploying to serverless without mounted persistent disk loses state or breaks features."
+    },
+    {
+      "id": "no-production-auth",
+      "description": "No authentication, authorization, CSRF, tenancy, or rate limits are present in the inspected API routes, including process-spawning terminal/MCP/test routes."
+    },
+    {
+      "id": "approval-policy-intent",
+      "description": "Project instructions require approval before risky external actions; current implementation persists approvals but does not resume gated execution."
+    },
+    {
+      "id": "sqljs-single-process",
+      "description": "The SQLite database is held as a singleton in memory and exported to disk after writes; safe only for single-process local use."
+    },
+    {
+      "id": "untracked-source",
+      "description": "Vault and test source folders are untracked at final validation. A clean clone with tracked files only will miss imported modules and the test runner."
+    }
+  ],
+  "architecturalIssues": [
+    {
+      "id": "A1",
+      "severity": "critical",
+      "title": "Important source folders are untracked and must be committed with the .gitignore fix",
+      "evidence": [".gitignore currently uses `/vault/` at line 15", "git status shows app/api/vault, app/vault, components/vault, lib/vault, app/api/tests, app/tests, components/tests, tests, and vitest.config.ts as untracked", "tracked files import vault modules"],
+      "impact": "A clean clone or CI build from tracked files only will miss the vault implementation, test runner, and unit tests. If the .gitignore fix is not committed with these files, the earlier nested-vault ignore problem can reappear.",
+      "recommendation": "Commit the `.gitignore` `/vault/` change together with the vault source folders, test source folders, tests, and vitest.config.ts."
+    },
+    {
+      "id": "A2",
+      "severity": "critical",
+      "title": "Unauthenticated terminal, MCP, test runner, vault, scheduler, approval, and run mutation APIs",
+      "evidence": ["app/api/terminal/sessions/route.ts:16", "app/api/terminal/[sessionId]/input/route.ts:13", "app/api/mcp/route.ts:22", "app/api/tests/route.ts", "app/api/vault/autotag/route.ts:70", "app/api/approvals/route.ts:17", "app/api/routines/route.ts:19"],
+      "impact": "If reachable beyond a trusted local browser, an attacker can start a shell/CLI, run npm tests as a child process, send raw input, spawn arbitrary MCP commands, mutate vault files, start workflows, and change approvals.",
+      "recommendation": "Keep these routes localhost-only during development. Before any hosted use, add authentication, CSRF protection, authorization checks, request audit context, and explicit command allowlists."
+    },
+    {
+      "id": "A3",
+      "severity": "high",
+      "title": "Background run execution is tied to the API route process lifetime",
+      "evidence": ["lib/agent/engine.ts:310", "lib/agent/engine.ts:313", "app/api/runs/route.ts:30"],
+      "impact": "Long model calls can be killed when the request/runtime instance ends, especially on serverless platforms. Runs may remain stuck in planning or partial states.",
+      "recommendation": "Move execution to a real worker/queue with durable jobs, heartbeats, retries, cancellation, and explicit run lease ownership."
+    },
+    {
+      "id": "A4",
+      "severity": "high",
+      "title": "SQL.js persistence is single-process and save-on-every-write",
+      "evidence": ["lib/db/client.ts:12", "lib/db/client.ts:28", "lib/db/client.ts:43", "lib/db/repositories.ts:641"],
+      "impact": "Concurrent API calls can interleave writes or lose data. Multi-process dev/serverless deployments can diverge because each process owns a separate in-memory Database instance.",
+      "recommendation": "For production, move to a real SQLite driver with WAL/locking or a hosted database. For local-only, serialize writes through a mutex and batch save operations."
+    },
+    {
+      "id": "A5",
+      "severity": "high",
+      "title": "Approval status updates do not resume or execute blocked work",
+      "evidence": ["lib/agent/engine.ts:372", "lib/agent/engine.ts:389", "lib/agent/engine.ts:433", "app/api/approvals/route.ts:19", "lib/db/repositories.ts:161"],
+      "impact": "The UI can approve/reject records, but there is no executor that consumes approved requests and performs the originally blocked tool call. Approval is currently an audit/status concept, not an action gate.",
+      "recommendation": "Model gated tool calls as resumable jobs with exact payloads, idempotency keys, post-approval execution handlers, and post-execution audit records."
+    },
+    {
+      "id": "A6",
+      "severity": "medium",
+      "title": "Scheduler and vault indexing start from root layout module side effects",
+      "evidence": ["app/layout.tsx:17", "app/layout.tsx:18"],
+      "impact": "Next module loading, dev HMR, multiple workers, or serverless cold starts can start duplicate schedulers or expensive vault walks at unpredictable times.",
+      "recommendation": "Move startup work behind an explicit singleton service, a CLI/dev command, or a dedicated worker process."
+    },
+    {
+      "id": "A7",
+      "severity": "medium",
+      "title": "Most integrations remain mock-first while UI labels suggest broad operational coverage",
+      "evidence": ["lib/integrations/adapters.ts:8", "data/seed-integrations.ts", "README.md moving from mock mode section"],
+      "impact": "Product capability can be overestimated. Only selected read paths are live: YouTube, Instagram, TikTok, Hacker News, GitHub Trending, provider checks, terminal/CLI, MCP registration.",
+      "recommendation": "Add capability flags per action and distinguish UI copy between live, mock, read-only, draft-only, and approval-gated write support."
+    },
+    {
+      "id": "A8",
+      "severity": "medium",
+      "title": "Several source files contain mojibake in UI strings and generated markdown text",
+      "evidence": ["Observed sequences like `â€”`, `Â·`, `â†’`, `â€¦` in app, lib, and component output"],
+      "impact": "Users will see corrupted punctuation in UI, vault artifacts, SSE output, and generated summaries.",
+      "recommendation": "Normalize source files to UTF-8 and replace corrupted sequences with correct characters or ASCII-safe equivalents."
+    },
+    {
+      "id": "A9",
+      "severity": "low",
+      "title": "GitHub Trending integration scrapes HTML with regex",
+      "evidence": ["lib/integrations/github-trending.ts:37"],
+      "impact": "GitHub markup changes can break the research panel without a typed failure mode.",
+      "recommendation": "Prefer an official API where possible, or isolate parser tests with saved fixtures and observable error reporting."
+    }
+  ],
+  "verification": {
+    "commandsRun": [
+      {
+        "command": "npm run typecheck",
+        "result": "passed in current workspace"
+      },
+      {
+        "command": "git check-ignore -v app/api/vault/route.ts app/vault/page.tsx components/vault/create-note.tsx lib/vault/service.ts vault/test.md .agenticos/agenticos.sqlite",
+        "result": "vault source files are no longer ignored; root vault/ and .agenticos/ runtime paths are ignored"
+      },
+      {
+        "command": "local source LOC count",
+        "result": "131 TypeScript/TSX files, approximately 11496 LOC excluding node_modules, .next, .git, .agenticos, and root vault runtime folder"
+      }
+    ],
+    "notRun": [
+      "npm run build",
+      "npm run lint",
+      "npm test",
+      "browser visual smoke test of generated HTML"
+    ]
+  },
+  "recommendedNextActions": [
+    {
+      "priority": "P0",
+      "action": "Commit the current `.gitignore` `/vault/` fix together with untracked vault/test source folders and vitest.config.ts."
+    },
+    {
+      "priority": "P0",
+      "action": "Add auth/localhost binding and command allowlists before exposing API routes to any network."
+    },
+    {
+      "priority": "P1",
+      "action": "Move run execution and scheduler work into a durable worker/queue model."
+    },
+    {
+      "priority": "P1",
+      "action": "Replace SQL.js save-on-every-write with a persistence strategy that has locking, migrations, backups, and concurrency guarantees."
+    },
+    {
+      "priority": "P1",
+      "action": "Implement resumable approval execution or rename approvals as audit-only status records until execution exists."
+    },
+    {
+      "priority": "P2",
+      "action": "Normalize encoding and replace mojibake across source strings."
+    }
+  ]
+}

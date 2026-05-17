@@ -18,6 +18,7 @@ import {
 } from "@/lib/db/repositories";
 import { indexGeneratedArtifact } from "@/lib/memory/indexer";
 import { loadVaultContext, writeVaultMarkdown } from "@/lib/vault/service";
+import { pushNotification, isPushConfigured } from "@/lib/notify/push";
 
 export interface RunRequest {
   prompt: string;
@@ -387,6 +388,15 @@ async function runWorkflowSteps(run: Run, plan: AgentPlan, request: RunRequest):
       await insertApproval(approval);
       run.approvals.push(approval.id);
       run.status = "waiting_for_approval";
+      if (isPushConfigured()) {
+        void pushNotification({
+          title: `Approval needed: ${approval.action}`,
+          message: `Risk: ${approval.riskLevel}. Integration: ${approval.integration}. Resource: ${approval.affectedResource}.`,
+          priority: approval.riskLevel === "critical" ? "urgent" : "high",
+          tags: ["warning", approval.riskLevel],
+          click: `${process.env.AGENTICOS_PUBLIC_URL ?? "http://localhost:3000"}/approvals`,
+        });
+      }
     } else {
       call.status = "executed";
       call.output = `Mock observation for ${planStep.title}.`;

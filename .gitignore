@@ -12,7 +12,8 @@ dist/
 
 # local runtime
 .agenticos/
-vault/
+/vault/
+/backups/
 *.sqlite
 *.sqlite-shm
 *.sqlite-wal
@@ -33,3 +34,11 @@ pnpm-debug.log*
 Thumbs.db
 .vscode/
 .idea/
+
+# agent local overrides
+*.local.md
+.claude/settings.local.json
+.claude/*.local.json
+.codex/settings.local.json
+.codex/*.local.json
+.mcp.local.json

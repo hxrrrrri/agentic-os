@@ -120,8 +120,12 @@ export async function POST(
     if (!apiKey) return json(401, { ok: false, message: "GEMINI_API_KEY not set" });
     try {
       const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`,
-        { cache: "no-store", signal: AbortSignal.timeout(8000) },
+        "https://generativelanguage.googleapis.com/v1beta/models",
+        {
+          cache: "no-store",
+          headers: { "x-goog-api-key": apiKey },
+          signal: AbortSignal.timeout(8000),
+        },
       );
       if (response.status === 400 || response.status === 403) return json(403, { ok: false, message: "Invalid API key" });
       if (!response.ok) return json(503, { ok: false, message: `API returned ${response.status}` });

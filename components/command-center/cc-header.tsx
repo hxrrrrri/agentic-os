@@ -1,5 +1,7 @@
 "use client";
 
+import { useRouter } from "next/navigation";
+import { useTransition } from "react";
 import { RotateCw } from "lucide-react";
 import { AgenticOsLogo } from "@/components/layout/agenticos-logo";
 
@@ -13,6 +15,9 @@ interface Props {
 }
 
 export function CommandCenterHeader({ activeTab, onTabChange }: Props) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const refresh = () => startTransition(() => router.refresh());
   return (
     <div className="border-b border-[#1d211b] bg-[#0b0d0a] px-5 pb-3 pt-4">
       <div className="flex items-center justify-between">
@@ -29,10 +34,12 @@ export function CommandCenterHeader({ activeTab, onTabChange }: Props) {
           </span>
           <button
             type="button"
-            className="inline-flex h-[22px] w-[22px] items-center justify-center rounded-[2px] border border-[#2a302c] bg-[#10120f] text-[#a8a29a] transition hover:border-[#e86f3a] hover:text-[#e86f3a]"
+            onClick={refresh}
+            disabled={pending}
+            className="inline-flex h-[22px] w-[22px] items-center justify-center rounded-[2px] border border-[#2a302c] bg-[#10120f] text-[#a8a29a] transition hover:border-[#e86f3a] hover:text-[#e86f3a] disabled:opacity-50"
             aria-label="Refresh"
           >
-            <RotateCw size={11} />
+            <RotateCw size={11} className={pending ? "animate-spin" : undefined} />
           </button>
         </div>
       </div>

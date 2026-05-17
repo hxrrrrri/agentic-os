@@ -1,0 +1,698 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AgenticOS Architecture Map</title>
+  <style>
+    :root {
+      --bg: #07100f;
+      --panel: rgba(12, 20, 19, 0.88);
+      --panel-2: rgba(17, 28, 27, 0.92);
+      --line: rgba(148, 163, 184, 0.22);
+      --text: #eef8f4;
+      --muted: #9fb2aa;
+      --dim: #65756f;
+      --accent: #34d399;
+      --orange: #fb923c;
+      --blue: #60a5fa;
+      --red: #f87171;
+      --yellow: #facc15;
+      --violet: #a78bfa;
+      --shadow: 0 20px 80px rgba(0,0,0,.45);
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 16% 14%, rgba(52, 211, 153, .12), transparent 30%),
+        radial-gradient(circle at 78% 24%, rgba(96, 165, 250, .11), transparent 28%),
+        linear-gradient(135deg, #06100f 0%, #0b1312 42%, #0f1714 100%);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      overflow: hidden;
+    }
+    button, input { font: inherit; }
+    .app {
+      display: grid;
+      grid-template-rows: auto 1fr;
+      height: 100%;
+      min-width: 980px;
+    }
+    header {
+      border-bottom: 1px solid var(--line);
+      background: rgba(4, 10, 9, .74);
+      backdrop-filter: blur(22px);
+      padding: 18px 22px 16px;
+      position: relative;
+      z-index: 20;
+    }
+    .topline {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 18px;
+      align-items: start;
+    }
+    h1 {
+      margin: 0;
+      font-size: clamp(28px, 3vw, 46px);
+      letter-spacing: 0;
+      line-height: 1;
+      font-weight: 900;
+    }
+    .subtitle {
+      margin-top: 9px;
+      max-width: 940px;
+      color: var(--muted);
+      line-height: 1.55;
+      font-size: 14px;
+    }
+    .stats {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      min-width: 420px;
+    }
+    .stat {
+      min-width: 104px;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,.045);
+      border-radius: 8px;
+      padding: 10px 12px;
+      text-align: right;
+    }
+    .stat b { display: block; font-size: 20px; }
+    .stat span { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .08em; }
+    .toolbar {
+      margin-top: 16px;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .search {
+      width: 340px;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,.06);
+      color: var(--text);
+      border-radius: 8px;
+      padding: 10px 12px;
+      outline: none;
+    }
+    .pill, .btn {
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,.055);
+      color: var(--muted);
+      border-radius: 999px;
+      padding: 9px 12px;
+      cursor: pointer;
+      transition: .18s ease;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+    }
+    .pill.active, .pill:hover, .btn:hover {
+      color: var(--text);
+      border-color: rgba(52, 211, 153, .7);
+      background: rgba(52, 211, 153, .12);
+    }
+    main {
+      display: grid;
+      grid-template-columns: 1fr 390px;
+      min-height: 0;
+    }
+    .stage-wrap {
+      position: relative;
+      min-height: 0;
+      overflow: hidden;
+      border-right: 1px solid var(--line);
+    }
+    .stage-help {
+      position: absolute;
+      left: 18px;
+      top: 18px;
+      z-index: 5;
+      max-width: 440px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+      border: 1px solid var(--line);
+      background: rgba(3, 8, 8, .72);
+      border-radius: 8px;
+      padding: 10px 12px;
+      pointer-events: none;
+    }
+    .zoom-controls {
+      position: absolute;
+      right: 18px;
+      top: 18px;
+      display: flex;
+      gap: 8px;
+      z-index: 6;
+    }
+    .stage {
+      position: absolute;
+      inset: 0;
+      cursor: grab;
+      background-image:
+        linear-gradient(rgba(255,255,255,.045) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,.045) 1px, transparent 1px);
+      background-size: 42px 42px;
+      background-position: -1px -1px;
+    }
+    .stage.dragging { cursor: grabbing; }
+    .world {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 1700px;
+      height: 1120px;
+      transform-origin: 0 0;
+    }
+    svg.edges {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 1700px;
+      height: 1120px;
+      overflow: visible;
+      pointer-events: none;
+    }
+    .edge {
+      stroke: rgba(159, 178, 170, .38);
+      stroke-width: 2;
+      fill: none;
+      marker-end: url(#arrow);
+    }
+    .edge.flow-run { stroke: rgba(52, 211, 153, .58); }
+    .edge.flow-risk { stroke: rgba(248, 113, 113, .62); stroke-dasharray: 7 7; }
+    .edge.flow-data { stroke: rgba(96, 165, 250, .52); }
+    .edge-label {
+      fill: #9fb2aa;
+      font-size: 11px;
+      paint-order: stroke;
+      stroke: rgba(4, 10, 9, .9);
+      stroke-width: 4px;
+    }
+    .node {
+      position: absolute;
+      width: 210px;
+      min-height: 102px;
+      border: 1px solid rgba(255,255,255,.12);
+      border-left-width: 4px;
+      border-radius: 10px;
+      background: linear-gradient(180deg, rgba(255,255,255,.075), rgba(255,255,255,.035));
+      box-shadow: 0 12px 40px rgba(0,0,0,.28);
+      padding: 12px;
+      cursor: pointer;
+      transition: transform .18s ease, border-color .18s ease, background .18s ease, opacity .18s ease;
+    }
+    .node:hover, .node.active {
+      transform: translateY(-2px);
+      border-color: rgba(255,255,255,.34);
+      background: linear-gradient(180deg, rgba(255,255,255,.12), rgba(255,255,255,.045));
+    }
+    .node.dimmed { opacity: .18; }
+    .node .kind {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border: 1px solid rgba(255,255,255,.14);
+      background: rgba(0,0,0,.24);
+      border-radius: 999px;
+      color: var(--muted);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: .09em;
+      padding: 4px 7px;
+    }
+    .glyph {
+      display: inline-grid;
+      place-items: center;
+      width: 18px;
+      height: 18px;
+      border-radius: 6px;
+      color: #06100f;
+      font-weight: 900;
+      font-size: 10px;
+    }
+    .node h3 {
+      margin: 10px 0 5px;
+      font-size: 16px;
+      letter-spacing: 0;
+      line-height: 1.15;
+    }
+    .node p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.38;
+    }
+    .node .meta {
+      margin-top: 9px;
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .tag {
+      display: inline-flex;
+      border: 1px solid rgba(255,255,255,.12);
+      color: var(--muted);
+      background: rgba(0,0,0,.19);
+      border-radius: 6px;
+      padding: 4px 6px;
+      font-size: 10px;
+    }
+    .ui { border-left-color: var(--blue); }
+    .api { border-left-color: var(--accent); }
+    .service { border-left-color: var(--violet); }
+    .store { border-left-color: var(--orange); }
+    .external { border-left-color: #38bdf8; }
+    .risk { border-left-color: var(--red); }
+    .ui .glyph { background: var(--blue); }
+    .api .glyph { background: var(--accent); }
+    .service .glyph { background: var(--violet); }
+    .store .glyph { background: var(--orange); }
+    .external .glyph { background: #38bdf8; }
+    .risk .glyph { background: var(--red); }
+    aside {
+      min-height: 0;
+      overflow: auto;
+      background: rgba(4, 10, 9, .84);
+      padding: 18px;
+    }
+    .panel {
+      border: 1px solid var(--line);
+      background: var(--panel);
+      border-radius: 10px;
+      box-shadow: var(--shadow);
+      padding: 15px;
+      margin-bottom: 14px;
+    }
+    .panel h2 {
+      margin: 0 0 10px;
+      font-size: 15px;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+    }
+    .panel h3 {
+      margin: 14px 0 8px;
+      font-size: 13px;
+      color: var(--text);
+    }
+    .small { color: var(--muted); font-size: 12px; line-height: 1.5; }
+    .list { display: grid; gap: 7px; margin: 0; padding: 0; list-style: none; }
+    .list li {
+      border: 1px solid rgba(255,255,255,.08);
+      background: rgba(255,255,255,.035);
+      border-radius: 8px;
+      padding: 8px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.42;
+    }
+    code {
+      color: #c7f9df;
+      background: rgba(52, 211, 153, .09);
+      border: 1px solid rgba(52, 211, 153, .16);
+      border-radius: 5px;
+      padding: 1px 5px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: .92em;
+    }
+    .issue {
+      border-left: 4px solid var(--red);
+      padding-left: 10px;
+      margin: 10px 0;
+    }
+    .issue.high { border-left-color: var(--orange); }
+    .issue.medium { border-left-color: var(--yellow); }
+    .issue.low { border-left-color: var(--blue); }
+    .issue b { display: block; margin-bottom: 4px; }
+    .flow-card {
+      border: 1px solid rgba(255,255,255,.1);
+      background: var(--panel-2);
+      border-radius: 10px;
+      padding: 10px;
+      margin-top: 8px;
+      cursor: pointer;
+      transition: .18s ease;
+    }
+    .flow-card:hover { border-color: rgba(52, 211, 153, .55); transform: translateX(2px); }
+    .flow-card b { display: block; font-size: 12px; }
+    .flow-card span { display: block; color: var(--muted); font-size: 11px; margin-top: 4px; line-height: 1.4; }
+    .endpoint-grid { display: grid; gap: 7px; }
+    .endpoint {
+      display: grid;
+      grid-template-columns: 70px 1fr;
+      gap: 8px;
+      border: 1px solid rgba(255,255,255,.09);
+      background: rgba(255,255,255,.035);
+      border-radius: 8px;
+      padding: 8px;
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .method { color: var(--accent); font-weight: 800; }
+    .footer-note { color: var(--dim); font-size: 11px; line-height: 1.45; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <div class="topline">
+        <div>
+          <h1>AgenticOS Architecture Map</h1>
+          <div class="subtitle">
+            Interactive map generated from the local codebase. Drag to pan, wheel to zoom, click any module for exact files,
+            responsibilities, dependencies, and risks. The companion machine-readable output is
+            <code>agenticos-architecture-agent.json</code>.
+          </div>
+        </div>
+        <div class="stats">
+          <div class="stat"><b>131</b><span>local TS/TSX</span></div>
+          <div class="stat"><b>11.5k</b><span>approx LOC</span></div>
+          <div class="stat"><b>61</b><span>seeded skills</span></div>
+          <div class="stat"><b>14</b><span>integrations</span></div>
+          <div class="stat"><b>7</b><span>routines</span></div>
+        </div>
+      </div>
+      <div class="toolbar">
+        <input id="search" class="search" placeholder="Search modules, files, routes, services..." />
+        <button class="pill active" data-filter="all">All</button>
+        <button class="pill" data-filter="ui">UI</button>
+        <button class="pill" data-filter="api">API</button>
+        <button class="pill" data-filter="service">Services</button>
+        <button class="pill" data-filter="store">Storage</button>
+        <button class="pill" data-filter="external">External</button>
+        <button class="pill" data-filter="risk">Risks</button>
+      </div>
+    </header>
+    <main>
+      <section class="stage-wrap">
+        <div class="stage-help">
+          Main flow: Dashboard or routines create runs, the agent engine loads project/vault/memory context,
+          calls a model provider, writes a vault artifact, updates SQLite, and streams run status back to the UI.
+        </div>
+        <div class="zoom-controls">
+          <button class="btn" id="zoomOut">-</button>
+          <button class="btn" id="zoomReset">Reset</button>
+          <button class="btn" id="zoomIn">+</button>
+        </div>
+        <div id="stage" class="stage">
+          <div id="world" class="world">
+            <svg class="edges" id="edges" viewBox="0 0 1700 1120">
+              <defs>
+                <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                  <path d="M0,0 L0,6 L9,3 z" fill="rgba(159,178,170,.72)"></path>
+                </marker>
+              </defs>
+            </svg>
+            <div id="nodes"></div>
+          </div>
+        </div>
+      </section>
+      <aside>
+        <div class="panel" id="inspector">
+          <h2>Inspector</h2>
+          <div class="small">Click a module in the map. Use the filters to focus on UI, API, service, storage, external systems, or architectural risk.</div>
+        </div>
+        <div class="panel">
+          <h2>Key Flows</h2>
+          <div id="flows"></div>
+        </div>
+        <div class="panel">
+          <h2>Architectural Issues</h2>
+          <div id="issues"></div>
+        </div>
+        <div class="panel">
+          <h2>API Surface</h2>
+          <div class="endpoint-grid" id="endpoints"></div>
+        </div>
+        <div class="panel">
+          <h2>Validation</h2>
+          <ul class="list">
+            <li><code>npm run typecheck</code> passed in this workspace.</li>
+            <li>Local source count: 131 TS/TSX files, about 11,496 LOC excluding build/runtime folders.</li>
+            <li>Important caveat: vault and test source folders are untracked at final validation; <code>.gitignore</code> now uses <code>/vault/</code>.</li>
+          </ul>
+          <p class="footer-note">Generated on 2026-05-17 from <code>c:\project_github\agentic-os</code>.</p>
+        </div>
+      </aside>
+    </main>
+  </div>
+  <script>
+    const nodes = [
+      { id:"dashboard", type:"ui", glyph:"UI", title:"Dashboard", subtitle:"Prompt console, skill grid, metrics", x:80, y:120, files:["app/dashboard/page.tsx","components/dashboard/prompt-console.tsx","components/dashboard/skill-grid.tsx"], tags:["/dashboard","localStorage","skills"], details:["Submits POST /api/runs with prompt, skillId, dryRun, modelProfile.","Reads active provider/model/thinking/effort from browser localStorage.","Shows usage/activity metrics from SQLite-derived data."] },
+      { id:"command", type:"ui", glyph:"UI", title:"Command Center", subtitle:"Ops dashboard and embedded terminal", x:80, y:330, files:["app/command-center/page.tsx","components/command-center/*","lib/command-center/data.ts"], tags:["/command-center","tasks","social"], details:["Aggregates runs, routines, markdown tasks, YouTube, Instagram, TikTok, Hacker News, and GitHub Trending.","Includes xterm.js terminal pane wired to PTY sessions."] },
+      { id:"vaultui", type:"ui", glyph:"UI", title:"Vault UI", subtitle:"File browser, graph, backlinks, patterns", x:80, y:560, files:["app/vault/page.tsx","components/vault/*"], tags:["/vault","untracked"], details:["Renders local memory vault and graph tools.","Untracked at final validation; commit with the current /vault/ .gitignore fix."] },
+      { id:"settings", type:"ui", glyph:"UI", title:"Settings", subtitle:"Provider profiles and runtime paths", x:80, y:790, files:["app/settings/page.tsx","components/settings/model-provider-profiles.tsx"], tags:["providers","context"], details:["Tests providers, refreshes model catalogs, persists selected model profiles in localStorage.","Displays .agenticos-project manifest."] },
+
+      { id:"apiruns", type:"api", glyph:"API", title:"/api/runs", subtitle:"Create/list runs and SSE updates", x:380, y:130, files:["app/api/runs/route.ts","app/api/runs/[id]/route.ts","app/api/runs/[id]/stream/route.ts","app/api/runs/[id]/retry/route.ts"], tags:["GET","POST","SSE"], details:["POST creates a run and starts background executeWorkflow in-process.","SSE endpoint polls SQLite every 500ms for status and new steps."] },
+      { id:"apiterminal", type:"api", glyph:"API", title:"/api/terminal", subtitle:"PTY sessions, streams, raw input", x:380, y:350, files:["app/api/terminal/sessions/route.ts","app/api/terminal/[sessionId]/stream/route.ts","app/api/terminal/[sessionId]/input/route.ts"], tags:["POST","SSE","PTY"], details:["Creates shell/CLI sessions through lib/terminal/manager.ts.","Streams base64 encoded raw PTY output to the browser."] },
+      { id:"apivault", type:"api", glyph:"API", title:"/api/vault", subtitle:"Notes, graph, promote, autotag", x:380, y:570, files:["app/api/vault/route.ts","app/api/vault/graph/route.ts","app/api/vault/promote/route.ts","app/api/vault/autotag/route.ts"], tags:["GET","POST","untracked"], details:["Creates notes, indexes graph, promotes raw notes, patches frontmatter tags.","Untracked at final validation; commit with the current /vault/ .gitignore fix."] },
+      { id:"apiops", type:"api", glyph:"API", title:"Ops APIs", subtitle:"Approvals, routines, scheduler, metrics, MCP, tests", x:380, y:790, files:["app/api/approvals/route.ts","app/api/routines/route.ts","app/api/scheduler/route.ts","app/api/metrics/route.ts","app/api/mcp/route.ts","app/api/tests/route.ts"], tags:["approval","cron","mcp","vitest"], details:["Exposes approval status updates, routine execution, scheduler reloads, metrics, MCP server registration, and a Vitest runner API.","No authentication observed on mutation/process-spawning routes."] },
+
+      { id:"engine", type:"service", glyph:"AG", title:"Agent Run Engine", subtitle:"Plan, execute, generate, persist", x:720, y:130, files:["lib/agent/engine.ts","lib/agent/swarm.ts"], tags:["plans","tool calls","artifacts"], details:["Builds run plan, logs steps and tool calls, loads memory/vault/project context, calls provider, writes artifact, indexes memory.","Approval requests are created but not resumed into post-approval execution."] },
+      { id:"llm", type:"service", glyph:"LLM", title:"LLM Router", subtitle:"Cloud, local, and CLI generation", x:1020, y:120, files:["lib/agent/llm.ts","lib/agent/providers.ts","lib/agent/cli.ts"], tags:["OpenAI","Ollama","CLI"], details:["Routes provider id to Ollama, NVIDIA, Anthropic, OpenAI, OpenRouter, Gemini, Grok, Claude Code CLI, Codex CLI, Copilot CLI, or Gemini CLI.","Hardcoded model catalogs and pricing need ongoing maintenance."] },
+      { id:"skills", type:"service", glyph:"SK", title:"Skills Registry", subtitle:"61 seeded workflow templates", x:720, y:330, files:["data/seed-skills.ts","lib/skills/registry.ts","types/skill.ts"], tags:["61 skills","risk","outputs"], details:["Skill metadata includes category, prompt template, required integrations, risk level, output location, execution mode.","Prompt classifier falls back to memory category."] },
+      { id:"projectcontext", type:"service", glyph:"CTX", title:"Project Context", subtitle:"Portable markdown instructions", x:1020, y:330, files:[".agenticos-project/**/*.md","lib/agent/project-context.ts"], tags:["28 md files","18k cap"], details:["Loads markdown context by priority and clips per-file/total characters before model calls.","Keeps provider behavior aligned across cloud/local/CLI calls."] },
+      { id:"terminal", type:"service", glyph:"PTY", title:"Terminal Manager", subtitle:"node-pty shell and CLI sessions", x:720, y:550, files:["lib/terminal/adapters.ts","lib/terminal/manager.ts"], tags:["node-pty","shell","cwd=vault"], details:["Discovers command availability, spawns selected adapter or shell fallback, keeps in-memory session history.","Session cwd is the vault path."] },
+      { id:"mcp", type:"service", glyph:"MCP", title:"MCP Bridge", subtitle:"Spawn stdio servers and list tools", x:1020, y:550, files:["lib/mcp/bridge.ts","app/api/mcp/route.ts"], tags:["stdio","JSON-RPC","risk"], details:["POST /api/mcp accepts command/args/env and spawns a process.","Tools are classified by text risk terms, but tool execution is not approval-gated in bridge code."] },
+      { id:"scheduler", type:"service", glyph:"CR", title:"Scheduler", subtitle:"node-cron routine worker", x:720, y:790, files:["lib/scheduler/worker.ts","lib/scheduler/routines.ts"], tags:["7 routines","cron"], details:["Parses natural schedule strings into cron expressions and calls createAndRunWorkflow.","Started from app/layout.tsx and /api/scheduler."] },
+      { id:"integrations", type:"service", glyph:"INT", title:"Integration Readers", subtitle:"Social and research feeds", x:1020, y:790, files:["lib/integrations/youtube.ts","lib/integrations/instagram.ts","lib/integrations/tiktok.ts","lib/integrations/hackernews.ts","lib/integrations/github-trending.ts"], tags:["YouTube","HN","GitHub"], details:["Live read paths for YouTube, Instagram, TikTok, Hacker News, and GitHub Trending.","Most broader integration actions remain mock/draft-only."] },
+
+      { id:"db", type:"store", glyph:"DB", title:"SQL.js SQLite", subtitle:".agenticos/agenticos.sqlite", x:1320, y:160, files:["lib/db/client.ts","lib/db/repositories.ts"], tags:["10 tables","single process"], details:["Tables: runs, run_steps, tool_calls, approvals, memory_index, integrations, routines, audit_logs, vault_nodes, vault_links.","Database is a singleton in memory and exported to disk on every save."] },
+      { id:"vault", type:"store", glyph:"FS", title:"Markdown Vault", subtitle:"vault/ folders and Obsidian config", x:1320, y:400, files:["lib/vault/service.ts","lib/vault/graph.ts","lib/vault/conflict.ts","lib/vault/promote.ts","lib/vault/patterns.ts"], tags:["filesystem","wikilinks"], details:["Folders: raw, wiki, projects, content, daily, runs, drafts, memory, config, attachments.","Provides safe path resolution, note writes, context loading, graph indexing, promotion, conflict and pattern detection."] },
+      { id:"external", type:"external", glyph:"EX", title:"External Providers", subtitle:"Model APIs, CLIs, social APIs", x:1320, y:650, files:["Environment variables","Installed CLIs"], tags:["API keys","CLIs"], details:["Cloud APIs: NVIDIA, OpenAI, Anthropic, Gemini, OpenRouter, Grok/xAI.","Local/process tools: Ollama, Claude Code, Codex, Gemini CLI, Copilot CLI, shell, MCP commands.","Social/research: YouTube, Meta Graph, TikTok, Hacker News, GitHub Trending."] },
+
+      { id:"riskgit", type:"risk", glyph:"R1", title:"Untracked Source", subtitle:"vault/test source must be committed", x:590, y:990, files:[".gitignore:15","app/api/vault/*","app/vault/*","components/vault/*","lib/vault/*","app/api/tests/*","tests/unit/*"], tags:["critical","clean clone"], details:["The worktree now uses `/vault/`, so nested source folders are no longer ignored.","Vault and test source files are still untracked; a clean clone will miss them until they are added and committed."] },
+      { id:"riskauth", type:"risk", glyph:"R2", title:"Unauthenticated Mutation APIs", subtitle:"Terminal, MCP, tests, vault, approvals, routines", x:850, y:990, files:["app/api/terminal/sessions/route.ts","app/api/mcp/route.ts","app/api/tests/route.ts","app/api/vault/autotag/route.ts","app/api/approvals/route.ts"], tags:["critical","RCE risk"], details:["If exposed beyond trusted localhost, callers can start shells, run npm tests as a child process, send raw input, spawn MCP commands, mutate vault files, and alter approvals/routines.","Add auth, CSRF, localhost binding, allowlists, and audit actor identity before hosting."] },
+      { id:"riskrun", type:"risk", glyph:"R3", title:"In-process Background Jobs", subtitle:"No durable queue or worker lease", x:1110, y:990, files:["lib/agent/engine.ts:313","app/api/runs/route.ts:30"], tags:["high","serverless"], details:["startRun returns before executeWorkflow finishes; work lives in the API process.","Serverless or process restart can leave runs stuck or partially written."] },
+      { id:"riskapproval", type:"risk", glyph:"R4", title:"Approval Is Status Only", subtitle:"No resumable executor", x:1370, y:990, files:["lib/agent/engine.ts:372","app/api/approvals/route.ts:19"], tags:["high","approval"], details:["Approving a request updates SQLite status, but no handler consumes approved payloads and executes the originally blocked call.","Use resumable jobs with exact payloads, idempotency keys, and post-approval execution handlers."] }
+    ];
+
+    const edges = [
+      ["dashboard","apiruns","POST prompt","flow-run"],
+      ["apiruns","engine","startRun","flow-run"],
+      ["engine","skills","select skill","flow-data"],
+      ["engine","projectcontext","load context","flow-data"],
+      ["engine","llm","generate","flow-run"],
+      ["llm","external","API/CLI call","flow-run"],
+      ["engine","db","insert/update run","flow-data"],
+      ["engine","vault","write artifact","flow-data"],
+      ["vault","db","graph + memory rows","flow-data"],
+      ["apiruns","db","read SSE status","flow-data"],
+      ["command","apiterminal","start/stream/input","flow-run"],
+      ["apiterminal","terminal","session lifecycle","flow-run"],
+      ["terminal","external","spawn CLI/shell","flow-risk"],
+      ["apiops","mcp","connect/list","flow-run"],
+      ["mcp","external","spawn stdio command","flow-risk"],
+      ["apiops","scheduler","start/reload","flow-run"],
+      ["scheduler","engine","routine run","flow-run"],
+      ["command","integrations","live reads","flow-data"],
+      ["integrations","external","fetch feeds","flow-data"],
+      ["vaultui","apivault","file + graph ops","flow-run"],
+      ["apivault","vault","filesystem ops","flow-data"],
+      ["settings","llm","models/test","flow-data"],
+      ["riskgit","vaultui","untracked files","flow-risk"],
+      ["riskgit","vault","untracked files","flow-risk"],
+      ["riskauth","apiterminal","unguarded API","flow-risk"],
+      ["riskauth","apiops","unguarded API","flow-risk"],
+      ["riskrun","engine","process lifetime","flow-risk"],
+      ["riskapproval","apiops","status patch only","flow-risk"]
+    ];
+
+    const flows = [
+      { id:"run", title:"Run lifecycle", nodes:["dashboard","apiruns","engine","skills","projectcontext","llm","external","vault","db"], text:"Prompt/skill to plan, model output, vault artifact, memory index, run status stream." },
+      { id:"terminal", title:"Terminal lifecycle", nodes:["command","apiterminal","terminal","external"], text:"xterm browser input to /api/terminal, node-pty process, SSE output stream." },
+      { id:"vault", title:"Vault graph and memory", nodes:["vaultui","apivault","vault","db"], text:"File browser, note creation, graph indexing, backlinks, promotion, patterns, memory rows." },
+      { id:"routine", title:"Routine scheduler", nodes:["apiops","scheduler","engine","db","vault"], text:"node-cron routine firing creates normal workflows and durable artifacts." },
+      { id:"mcp", title:"MCP registration", nodes:["apiops","mcp","external","riskauth"], text:"API accepts server command, spawns stdio child process, lists tools." }
+    ];
+
+    const issues = [
+      { sev:"critical", title:"Untracked source folders", evidence:"Vault and test source folders plus vitest.config.ts are untracked. Commit with the current /vault/ .gitignore fix." },
+      { sev:"critical", title:"Unauthenticated mutation/process APIs", evidence:"Terminal, MCP, test runner, vault, approval, scheduler, run, and routine routes have no auth boundary." },
+      { sev:"high", title:"Background run execution is in-process", evidence:"lib/agent/engine.ts starts executeWorkflow with void and returns HTTP response." },
+      { sev:"high", title:"SQL.js single-process persistence", evidence:"In-memory singleton and full writeFileSync DB export on every save." },
+      { sev:"high", title:"Approvals do not resume execution", evidence:"PATCH /api/approvals only updates status; no executor consumes approved payloads." },
+      { sev:"medium", title:"Layout startup side effects", evidence:"app/layout.tsx starts scheduler and vault graph indexing at module load." },
+      { sev:"medium", title:"Mock-first integrations", evidence:"Only selected read paths are live; most integration actions are seeded/mock metadata." }
+    ];
+
+    const endpoints = [
+      ["GET/POST","/api/runs"], ["GET","/api/runs/[id]"], ["GET SSE","/api/runs/[id]/stream"], ["POST","/api/runs/[id]/retry"],
+      ["GET/PATCH","/api/approvals"], ["GET/PATCH","/api/routines"], ["GET/POST","/api/scheduler"], ["GET","/api/metrics"],
+      ["GET/POST","/api/command-center/tasks"], ["GET/POST/DEL","/api/mcp"], ["GET/POST","/api/terminal/sessions"],
+      ["GET/DEL","/api/terminal/[sessionId]"], ["GET SSE","/api/terminal/[sessionId]/stream"], ["POST","/api/terminal/[sessionId]/input"],
+      ["GET","/api/model-providers/[provider]/models"], ["POST","/api/model-providers/[provider]/test"], ["GET/POST","/api/tests"], ["GET","/api/tests/files"],
+      ["GET/POST","/api/vault"], ["GET/POST","/api/vault/graph"], ["GET","/api/vault/conflict"], ["GET","/api/vault/patterns"],
+      ["GET/POST","/api/vault/promote"], ["POST","/api/vault/autotag"], ["GET","/api/skills"]
+    ];
+
+    const stage = document.getElementById("stage");
+    const world = document.getElementById("world");
+    const nodeHost = document.getElementById("nodes");
+    const edgeSvg = document.getElementById("edges");
+    const inspector = document.getElementById("inspector");
+    const search = document.getElementById("search");
+    let transform = { x: 80, y: 20, scale: .74 };
+    let activeFilter = "all";
+    let selected = null;
+    let drag = null;
+
+    function renderNodes() {
+      nodeHost.innerHTML = nodes.map(n => `
+        <div class="node ${n.type}" data-id="${n.id}" data-type="${n.type}" style="left:${n.x}px;top:${n.y}px">
+          <span class="kind"><span class="glyph">${n.glyph}</span>${n.type}</span>
+          <h3>${n.title}</h3>
+          <p>${n.subtitle}</p>
+          <div class="meta">${n.tags.map(t => `<span class="tag">${t}</span>`).join("")}</div>
+        </div>`).join("");
+      nodeHost.querySelectorAll(".node").forEach(el => {
+        el.addEventListener("click", (event) => {
+          event.stopPropagation();
+          selectNode(el.dataset.id);
+        });
+      });
+    }
+
+    function center(n) { return { x:n.x + 105, y:n.y + 52 }; }
+    function renderEdges() {
+      const defs = edgeSvg.querySelector("defs").outerHTML;
+      const paths = edges.map(([a,b,label,cls]) => {
+        const s = center(nodes.find(n => n.id === a));
+        const t = center(nodes.find(n => n.id === b));
+        const dx = Math.max(80, Math.abs(t.x - s.x) * .42);
+        const d = `M ${s.x} ${s.y} C ${s.x + dx} ${s.y}, ${t.x - dx} ${t.y}, ${t.x} ${t.y}`;
+        const mx = (s.x + t.x) / 2;
+        const my = (s.y + t.y) / 2 - 8;
+        return `<path class="edge ${cls}" d="${d}"></path><text class="edge-label" x="${mx}" y="${my}">${label}</text>`;
+      }).join("");
+      edgeSvg.innerHTML = defs + paths;
+    }
+
+    function updateTransform() {
+      world.style.transform = `translate(${transform.x}px, ${transform.y}px) scale(${transform.scale})`;
+    }
+
+    function matches(n, query) {
+      const hay = [n.title, n.subtitle, n.type, ...n.tags, ...n.files, ...n.details].join(" ").toLowerCase();
+      return hay.includes(query.toLowerCase());
+    }
+
+    function applyFilters(highlightIds) {
+      const q = search.value.trim();
+      const ids = highlightIds ? new Set(highlightIds) : null;
+      nodeHost.querySelectorAll(".node").forEach(el => {
+        const n = nodes.find(item => item.id === el.dataset.id);
+        const okFilter = activeFilter === "all" || n.type === activeFilter;
+        const okSearch = !q || matches(n, q);
+        const okHighlight = !ids || ids.has(n.id);
+        const dim = !(okFilter && okSearch && okHighlight);
+        el.classList.toggle("dimmed", dim);
+        el.classList.toggle("active", selected === n.id);
+      });
+    }
+
+    function selectNode(id) {
+      selected = id;
+      const n = nodes.find(item => item.id === id);
+      inspector.innerHTML = `
+        <h2>${n.title}</h2>
+        <div class="small">${n.subtitle}</div>
+        <h3>Files</h3>
+        <ul class="list">${n.files.map(f => `<li><code>${f}</code></li>`).join("")}</ul>
+        <h3>Responsibilities and Notes</h3>
+        <ul class="list">${n.details.map(d => `<li>${d}</li>`).join("")}</ul>
+        <h3>Tags</h3>
+        <div class="meta">${n.tags.map(t => `<span class="tag">${t}</span>`).join("")}</div>`;
+      applyFilters();
+    }
+
+    function renderFlows() {
+      document.getElementById("flows").innerHTML = flows.map(f => `
+        <div class="flow-card" data-flow="${f.id}">
+          <b>${f.title}</b><span>${f.text}</span>
+        </div>`).join("");
+      document.querySelectorAll(".flow-card").forEach(el => {
+        el.addEventListener("mouseenter", () => {
+          const flow = flows.find(f => f.id === el.dataset.flow);
+          applyFilters(flow.nodes);
+        });
+        el.addEventListener("mouseleave", () => applyFilters());
+        el.addEventListener("click", () => {
+          const flow = flows.find(f => f.id === el.dataset.flow);
+          selectNode(flow.nodes[0]);
+          applyFilters(flow.nodes);
+        });
+      });
+    }
+
+    function renderIssues() {
+      document.getElementById("issues").innerHTML = issues.map(i => `
+        <div class="issue ${i.sev === "critical" ? "" : i.sev}">
+          <b>${i.title} <span class="tag">${i.sev}</span></b>
+          <div class="small">${i.evidence}</div>
+        </div>`).join("");
+    }
+
+    function renderEndpoints() {
+      document.getElementById("endpoints").innerHTML = endpoints.map(([m, r]) => `
+        <div class="endpoint"><span class="method">${m}</span><code>${r}</code></div>`).join("");
+    }
+
+    stage.addEventListener("wheel", (event) => {
+      event.preventDefault();
+      const rect = stage.getBoundingClientRect();
+      const before = {
+        x: (event.clientX - rect.left - transform.x) / transform.scale,
+        y: (event.clientY - rect.top - transform.y) / transform.scale
+      };
+      const delta = event.deltaY > 0 ? .92 : 1.08;
+      transform.scale = Math.min(1.8, Math.max(.35, transform.scale * delta));
+      transform.x = event.clientX - rect.left - before.x * transform.scale;
+      transform.y = event.clientY - rect.top - before.y * transform.scale;
+      updateTransform();
+    }, { passive:false });
+
+    stage.addEventListener("mousedown", (event) => {
+      if (event.target.closest(".node")) return;
+      drag = { sx:event.clientX, sy:event.clientY, x:transform.x, y:transform.y };
+      stage.classList.add("dragging");
+    });
+    window.addEventListener("mousemove", (event) => {
+      if (!drag) return;
+      transform.x = drag.x + event.clientX - drag.sx;
+      transform.y = drag.y + event.clientY - drag.sy;
+      updateTransform();
+    });
+    window.addEventListener("mouseup", () => { drag = null; stage.classList.remove("dragging"); });
+
+    document.getElementById("zoomIn").onclick = () => { transform.scale = Math.min(1.8, transform.scale * 1.15); updateTransform(); };
+    document.getElementById("zoomOut").onclick = () => { transform.scale = Math.max(.35, transform.scale / 1.15); updateTransform(); };
+    document.getElementById("zoomReset").onclick = () => { transform = { x:80, y:20, scale:.74 }; updateTransform(); };
+    document.querySelectorAll(".pill").forEach(btn => {
+      btn.addEventListener("click", () => {
+        document.querySelectorAll(".pill").forEach(b => b.classList.remove("active"));
+        btn.classList.add("active");
+        activeFilter = btn.dataset.filter;
+        applyFilters();
+      });
+    });
+    search.addEventListener("input", () => applyFilters());
+    stage.addEventListener("click", () => { selected = null; inspector.innerHTML = '<h2>Inspector</h2><div class="small">Click a module in the map. Use the filters to focus on UI, API, service, storage, external systems, or architectural risk.</div>'; applyFilters(); });
+
+    renderNodes();
+    renderEdges();
+    renderFlows();
+    renderIssues();
+    renderEndpoints();
+    updateTransform();
+    selectNode("engine");
+  </script>
+</body>
+</html>

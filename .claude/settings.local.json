@@ -2,7 +2,11 @@
   "permissions": {
     "allow": [
       "Bash(netstat -ano)",
-      "Bash(findstr :3000)"
+      "Bash(findstr :3000)",
+      "Bash(ls -la \"c:\\\\project_github\\\\agentic-os\\\\\" | findstr \"\\\\.env\")",
+      "Read(//c/project_github/**)",
+      "Bash(findstr /s /n \"onClick={\\(\\) => {}\" components app/command-center app/vault app/dashboard app/runs app/settings)",
+      "Bash(git check-ignore *)"
     ]
   }
 }

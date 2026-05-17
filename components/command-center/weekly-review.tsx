@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { WeeklyReviewData, WeeklyVideoStat } from "@/lib/command-center/data";
 
 const TONE_COLOR: Record<WeeklyVideoStat["tone"], string> = {
@@ -38,9 +39,12 @@ export function WeeklyReview({ data }: Props) {
             <span className="h-[5px] w-[5px] rounded-full bg-[#6f6a61]" title="mock / no API key" />
           )}
         </div>
-        <button type="button" className="inline-flex h-5 items-center rounded-[2px] border border-[#2a302c] bg-[#10120f] px-2 text-[0.52rem] font-bold uppercase tracking-[0.16em] text-[#a8a29a] transition hover:border-[#e86f3a] hover:text-[#e86f3a]">
+        <Link
+          href="/runs?skill=weekly-review"
+          className="inline-flex h-5 items-center rounded-[2px] border border-[#2a302c] bg-[#10120f] px-2 text-[0.52rem] font-bold uppercase tracking-[0.16em] text-[#a8a29a] transition hover:border-[#e86f3a] hover:text-[#e86f3a]"
+        >
           Full /
-        </button>
+        </Link>
       </div>
 
       {bullets.length > 0 ? (

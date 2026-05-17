@@ -1,6 +1,7 @@
 import { AudiencePanel } from "@/components/command-center/audience-panel";
 import { CommandBar } from "@/components/command-center/command-bar";
 import { CommandCenterShell } from "@/components/command-center/cc-shell";
+import { FirecrawlPanel } from "@/components/command-center/firecrawl-panel";
 import { LatestUpload } from "@/components/command-center/latest-upload";
 import { ResearchPanel } from "@/components/command-center/research-panel";
 import { SchedulePanel } from "@/components/command-center/schedule-panel";
@@ -49,6 +50,7 @@ export default async function CommandCenterPage() {
         research={
           <div className="space-y-3">
             <CommandBar />
+            <FirecrawlPanel />
             <ResearchPanel repos={data.repos} hnItems={data.hnItems} />
             <TerminalPane />
           </div>

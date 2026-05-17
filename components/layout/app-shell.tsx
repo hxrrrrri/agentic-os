@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Circle, Code2, FileText, Folder, HardDrive, LayoutDashboard, Settings, Sparkle } from "lucide-react";
+import { BookOpen, Circle, Code2, FileText, FlaskConical, Folder, HardDrive, LayoutDashboard, Settings, Sparkle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { AgenticOsLogo } from "@/components/layout/agenticos-logo";
 
@@ -10,6 +10,8 @@ const nav = [
   ["Daily Note", "/vault", FileText],
   ["Runs Folder", "/runs", Folder],
   ["Drafts", "/vault?path=drafts", Sparkle],
+  ["Docs", "/docs", BookOpen],
+  ["Tests", "/tests", FlaskConical],
   ["Settings", "/settings", Settings],
 ] as const;
 

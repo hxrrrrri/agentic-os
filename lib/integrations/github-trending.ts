@@ -37,8 +37,8 @@ export async function fetchGhTrending(limit = 5): Promise<RepoItem[] | null> {
 
     const repos: RepoItem[] = [];
     const blockRe = /<article[^>]*class="[^"]*Box-row[^"]*"[^>]*>([\s\S]*?)<\/article>/g;
-    let match: RegExpExecArray | null;
-    while ((match = blockRe.exec(html)) && repos.length < limit) {
+    for (const match of html.matchAll(blockRe)) {
+      if (repos.length >= limit) break;
       const block = match[1];
 
       const nameMatch = block.match(/<h2[^>]*>[\s\S]*?<a[^>]*href="\/([^"#]+)"/);
@@ -62,6 +62,7 @@ export async function fetchGhTrending(limit = 5): Promise<RepoItem[] | null> {
         description,
       });
     }
+
 
     return repos.length ? repos : null;
   } catch {
