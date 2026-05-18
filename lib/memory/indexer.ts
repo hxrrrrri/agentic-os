@@ -1,6 +1,7 @@
 import path from "node:path";
 import { createId, nowIso } from "@/lib/utils";
 import { upsertMemoryItem } from "@/lib/db/repositories";
+import { storeEmbedding } from "@/lib/memory/embeddings";
 import type { MemoryItem } from "@/types";
 
 export async function indexGeneratedArtifact(filePath: string, summary: string, tags: string[] = []) {
@@ -19,6 +20,7 @@ export async function indexGeneratedArtifact(filePath: string, summary: string, 
     importanceScore: tags.includes("decision") ? 0.9 : 0.55,
   };
   await upsertMemoryItem(item);
+  void storeEmbedding(item.id, `${item.title}\n\n${summary}`).catch(() => {});
   return item;
 }
 

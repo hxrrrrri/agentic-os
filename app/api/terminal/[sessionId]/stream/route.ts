@@ -1,4 +1,4 @@
-import { getSession, subscribeSession } from "@/lib/terminal/manager";
+import { getSession, getSessionHistory, subscribeSession } from "@/lib/terminal/manager";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -26,6 +26,10 @@ export async function GET(
         }
       }
 
+      send("history", {
+        chunks: getSessionHistory(sessionId).map((chunk) => Buffer.from(chunk, "utf8").toString("base64")),
+      });
+
       cleanup = subscribeSession(
         sessionId,
         // Base64-encode raw bytes so ANSI escape sequences survive JSON transport
@@ -37,6 +41,7 @@ export async function GET(
           } catch {}
           cleanup?.();
         },
+        { replayHistory: false },
       );
     },
     cancel() {

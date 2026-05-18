@@ -261,12 +261,12 @@ export function ModelProviderProfiles({ providers }: { providers: ModelEndpoint[
   }, [providers, refreshModels]);
 
   return (
-    <div className="space-y-2">
-      <div className="flex flex-wrap items-center gap-2 border border-[#2a302c] bg-[#080a09] p-3 text-xs">
-        <span className="text-[0.58rem] uppercase tracking-[0.14em] text-[#6f6a61]">Active profile</span>
+    <div className="space-y-1.5">
+      <div className="flex flex-wrap items-center gap-2 border border-[#2a302c] bg-[#080a09] px-3 py-1.5 text-xs">
+        <span className="text-[0.55rem] uppercase tracking-[0.14em] text-[#6f6a61]">Active</span>
         <span className="text-[#f4f1e8]">
           {activeProvider
-            ? `${providerLabel[activeProvider] ?? activeProvider} / ${selectedModels[activeProvider] ?? "model not selected"}`
+            ? `${providerLabel[activeProvider] ?? activeProvider} / ${selectedModels[activeProvider] ?? "—"}`
             : "No provider selected"}
         </span>
       </div>
@@ -289,59 +289,45 @@ export function ModelProviderProfiles({ providers }: { providers: ModelEndpoint[
           ? effort[provider.id]
           : "medium";
         const test = testState[provider.id];
+        const hasStatusMessage =
+          state.error ||
+          (test?.status === "error" && test.message) ||
+          (test?.status === "ok" && test.message);
 
         return (
           <div
             key={provider.id}
-            className="space-y-2 border border-[#2a302c] bg-[#080a09] p-3 text-xs"
+            className="border border-[#2a302c] bg-[#080a09] px-3 py-2 text-xs"
           >
-            <div className="grid gap-3 md:grid-cols-[1fr_minmax(11rem,16rem)_auto]">
+            {/* Row 1: title + badges (left) | model picker | reasoning/thinking | refresh + activate */}
+            <div className="grid items-center gap-2 md:grid-cols-[minmax(0,1fr)_minmax(10rem,15rem)_minmax(0,11rem)_auto]">
               <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="flex flex-wrap items-center gap-1.5">
                   <div className="text-[#f4f1e8]">{providerLabel[provider.id] ?? provider.provider}</div>
                   <Badge>{provider.mode}</Badge>
                   <Badge tone={isActive ? "green" : "gray"}>{isActive ? "active" : "standby"}</Badge>
                   {test?.status === "checking" ? (
                     <Badge tone="gray" className="gap-1">
-                      <Loader2 size={11} className="animate-spin" /> testing…
+                      <Loader2 size={10} className="animate-spin" /> test
                     </Badge>
                   ) : test?.status === "ok" ? (
                     <Badge tone="green" className="gap-1">
-                      <Zap size={11} /> connected
+                      <Zap size={10} /> ok
                     </Badge>
                   ) : test?.status === "error" ? (
                     <Badge tone="red" className="gap-1">
-                      <WifiOff size={11} /> unreachable
+                      <WifiOff size={10} /> err
                     </Badge>
                   ) : null}
                   {provider.requiresApiKey ? (
                     <Badge tone="orange" className="gap-1">
-                      <KeyRound size={11} /> key
-                    </Badge>
-                  ) : null}
-                  {showThinking && currentThinking !== "off" ? (
-                    <Badge tone="orange" className="gap-1">
-                      <Brain size={11} /> {currentThinking}
-                    </Badge>
-                  ) : null}
-                  {showEffort ? (
-                    <Badge tone="orange" className="gap-1">
-                      <Sparkles size={11} /> {currentEffort}
+                      <KeyRound size={10} /> key
                     </Badge>
                   ) : null}
                 </div>
-                <div className="mt-1 truncate text-[#6f6a61]">
+                <div className="mt-0.5 truncate text-[0.6rem] text-[#6f6a61]">
                   {provider.baseUrl ? provider.baseUrl : provider.provider}
                 </div>
-                <div className="mt-1 truncate text-[0.62rem] text-[#f4f1e8]">
-                  Selected model: <span className="text-[#e86f3a]">{selectedModel || "none"}</span>
-                </div>
-                {state.error ? <div className="mt-2 text-[#c99a45]">{state.error}</div> : null}
-                {test?.status === "error" && test.message ? (
-                  <div className="mt-1 text-[#c96060]">{test.message}</div>
-                ) : test?.status === "ok" && test.message ? (
-                  <div className="mt-1 text-[#5a9e6f]">{test.message}</div>
-                ) : null}
               </div>
 
               {isSelectable ? (
@@ -350,7 +336,7 @@ export function ModelProviderProfiles({ providers }: { providers: ModelEndpoint[
                   onChange={(event) =>
                     setSelectedModels((current) => ({ ...current, [provider.id]: event.target.value }))
                   }
-                  className="h-9 w-full rounded-[3px] border border-[#30342c] bg-[#111310] px-2 text-[0.65rem] text-[#f4f1e8] outline-none transition focus:border-[#e86f3a]"
+                  className="h-8 w-full rounded-[3px] border border-[#30342c] bg-[#111310] px-2 text-[0.65rem] text-[#f4f1e8] outline-none transition focus:border-[#e86f3a]"
                 >
                   {state.models.map((model, index) => (
                     <option key={`${provider.id}-${model}-${index}`} value={model}>
@@ -359,75 +345,85 @@ export function ModelProviderProfiles({ providers }: { providers: ModelEndpoint[
                   ))}
                 </select>
               ) : (
-                <div className="flex h-9 items-center border border-[#2a302c] bg-[#111310] px-2 text-[0.65rem] text-[#6f6a61]">
+                <div className="flex h-8 items-center truncate border border-[#2a302c] bg-[#111310] px-2 text-[0.65rem] text-[#6f6a61]">
                   {selectedModel}
                 </div>
               )}
 
-              <div className="flex gap-2 md:justify-end">
+              {/* Reasoning OR thinking inline — never both (provider supports only one). */}
+              {showThinking ? (
+                <div className="flex items-center gap-1.5">
+                  <Brain size={11} className="shrink-0 text-[#e86f3a]" />
+                  <select
+                    value={currentThinking}
+                    onChange={(event) =>
+                      setThinking((current) => ({ ...current, [provider.id]: event.target.value as ThinkingLevel }))
+                    }
+                    className="h-8 w-full rounded-[3px] border border-[#30342c] bg-[#111310] px-1.5 text-[0.6rem] text-[#f4f1e8] outline-none focus:border-[#e86f3a]"
+                    title="Thinking budget"
+                  >
+                    {thinkingOpts.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label} · {opt.budget}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : showEffort ? (
+                <div className="flex items-center gap-1.5">
+                  <Sparkles size={11} className="shrink-0 text-[#e86f3a]" />
+                  <select
+                    value={currentEffort}
+                    onChange={(event) =>
+                      setEffort((current) => ({ ...current, [provider.id]: event.target.value as ReasoningEffort }))
+                    }
+                    className="h-8 w-full rounded-[3px] border border-[#30342c] bg-[#111310] px-1.5 text-[0.6rem] text-[#f4f1e8] outline-none focus:border-[#e86f3a]"
+                    title="Reasoning effort"
+                  >
+                    {effortOptions.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : (
+                <div />
+              )}
+
+              <div className="flex gap-1.5 md:justify-end">
                 {provider.dynamicModels ? (
                   <Button
                     type="button"
                     onClick={() => void refreshModels(provider)}
                     disabled={state.loading}
                     aria-label={`Refresh ${providerLabel[provider.id] ?? provider.provider} models`}
-                    className="w-9 px-0"
+                    className="h-8 w-8 px-0"
                     title="Refresh models"
                   >
-                    <RefreshCw size={14} className={state.loading ? "animate-spin" : undefined} />
+                    <RefreshCw size={12} className={state.loading ? "animate-spin" : undefined} />
                   </Button>
                 ) : null}
                 <Button
                   type="button"
                   onClick={() => void activateProvider(provider, selectedModel)}
                   disabled={isActive || test?.status === "checking"}
-                  className="min-w-28"
+                  className="h-8 min-w-24"
                 >
-                  {test?.status === "checking" ? <Loader2 size={14} className="animate-spin" /> : isActive ? <Check size={14} /> : null}
-                  {test?.status === "checking" ? "Testing…" : isActive ? "Active" : "Activate"}
+                  {test?.status === "checking" ? <Loader2 size={12} className="animate-spin" /> : isActive ? <Check size={12} /> : null}
+                  {test?.status === "checking" ? "Test…" : isActive ? "Active" : "Activate"}
                 </Button>
               </div>
             </div>
 
-            {(showThinking || showEffort) ? (
-              <div className="grid gap-3 border-t border-[#1a1f1c] pt-2 md:grid-cols-2">
-                {showThinking ? (
-                  <div className="flex items-center gap-2">
-                    <Brain size={13} className="text-[#e86f3a]" />
-                    <span className="min-w-24 text-[0.6rem] uppercase tracking-[0.14em] text-[#8b857b]">Thinking</span>
-                    <select
-                      value={currentThinking}
-                      onChange={(event) =>
-                        setThinking((current) => ({ ...current, [provider.id]: event.target.value as ThinkingLevel }))
-                      }
-                      className="h-8 flex-1 rounded-[3px] border border-[#30342c] bg-[#111310] px-2 text-[0.65rem] text-[#f4f1e8] outline-none focus:border-[#e86f3a]"
-                    >
-                      {thinkingOpts.map((opt) => (
-                        <option key={opt.value} value={opt.value}>
-                          {opt.label} · budget {opt.budget}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                ) : null}
-                {showEffort ? (
-                  <div className="flex items-center gap-2">
-                    <Sparkles size={13} className="text-[#e86f3a]" />
-                    <span className="min-w-24 text-[0.6rem] uppercase tracking-[0.14em] text-[#8b857b]">Reasoning</span>
-                    <select
-                      value={currentEffort}
-                      onChange={(event) =>
-                        setEffort((current) => ({ ...current, [provider.id]: event.target.value as ReasoningEffort }))
-                      }
-                      className="h-8 flex-1 rounded-[3px] border border-[#30342c] bg-[#111310] px-2 text-[0.65rem] text-[#f4f1e8] outline-none focus:border-[#e86f3a]"
-                    >
-                      {effortOptions.map((opt) => (
-                        <option key={opt.value} value={opt.value}>
-                          {opt.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+            {/* Status messages — only rendered when present so empty cards stay 1-row tall. */}
+            {hasStatusMessage ? (
+              <div className="mt-1.5 text-[0.6rem]">
+                {state.error ? <span className="text-[#c99a45]">{state.error}</span> : null}
+                {test?.status === "error" && test.message ? (
+                  <span className="text-[#c96060]">{test.message}</span>
+                ) : test?.status === "ok" && test.message ? (
+                  <span className="text-[#5a9e6f]">{test.message}</span>
                 ) : null}
               </div>
             ) : null}

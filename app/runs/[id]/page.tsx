@@ -4,8 +4,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusDot } from "@/components/ui/status-dot";
-import { MarkdownOutput } from "@/components/ui/markdown-output";
 import { RunPoller } from "@/components/runs/run-poller";
+import { LiveOutput } from "@/components/runs/live-output";
 import { getRun, getRunPlan } from "@/lib/db/repositories";
 import { formatTime } from "@/lib/utils";
 
@@ -36,11 +36,11 @@ export default async function RunDetailPage({ params }: { params: Promise<{ id: 
         </div>
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-[1fr_360px]">
-        <div className="space-y-4">
+      <div className="grid min-w-0 max-w-full gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="min-w-0 max-w-full space-y-4">
           <Card>
             <CardHeader><CardTitle>Original Prompt</CardTitle></CardHeader>
-            <pre className="whitespace-pre-wrap border border-[#2a302c] bg-[#080a09] p-3 text-sm leading-6 text-[#a8a29a]">{run.prompt}</pre>
+            <pre className="safe-wrap max-w-full whitespace-pre-wrap border border-[#2a302c] bg-[#080a09] p-3 text-sm leading-6 text-[#a8a29a]">{run.prompt}</pre>
           </Card>
           <Card>
             <CardHeader><CardTitle>Plan Preview</CardTitle></CardHeader>
@@ -67,12 +67,18 @@ export default async function RunDetailPage({ params }: { params: Promise<{ id: 
           </Card>
           <Card>
             <CardHeader><CardTitle>Final Output</CardTitle></CardHeader>
-            <div className="border border-[#2a302c] bg-[#080a09] p-4 text-sm">
-              <MarkdownOutput content={run.finalOutput ?? "No output yet."} />
-            </div>
+            <LiveOutput runId={run.id} initialContent={run.finalOutput} isProcessing={isProcessing} />
           </Card>
+          {run.status === "failed" && run.errorDetail ? (
+            <Card>
+              <CardHeader><CardTitle>Error Detail</CardTitle></CardHeader>
+              <pre className="safe-wrap max-w-full whitespace-pre-wrap border border-[#5a2424] bg-[#100808] p-3 text-xs leading-5 text-[#e0a8a8]">
+                {run.errorDetail}
+              </pre>
+            </Card>
+          ) : null}
         </div>
-        <aside className="space-y-4">
+        <aside className="min-w-0 max-w-full space-y-4">
           <Card>
             <CardHeader><CardTitle>Tool Calls</CardTitle></CardHeader>
             <div className="space-y-2">

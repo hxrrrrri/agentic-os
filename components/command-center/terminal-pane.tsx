@@ -80,7 +80,7 @@ export function TerminalPane() {
       const term = new Terminal({
         theme: XTERM_THEME,
         fontFamily: '"JetBrains Mono", "Cascadia Code", ui-monospace, monospace',
-        fontSize: 13,
+        fontSize: 15,
         lineHeight: 1.45,
         cursorBlink: true,
         cursorStyle: "bar",
@@ -273,7 +273,7 @@ export function TerminalPane() {
       {/* ── Tab strip ── */}
       <div className="flex items-center justify-between border-b border-[#323232] bg-[#242424] px-2 py-[5px]">
         <div className="flex items-center gap-[6px]">
-          <div className={`flex h-[22px] items-center gap-[6px] rounded-[1px] border px-2 text-[0.58rem] uppercase tracking-[0.14em] ${session?.alive ? "border-[#e86f3a]/40 bg-[#1f1f1f] text-[#f4f1e8]" : "border-[#3f3f3f] bg-[#1f1f1f] text-[#a8a29a]"}`}>
+          <div className={`flex h-8 items-center gap-[7px] rounded-[1px] border px-3 text-[0.72rem] uppercase tracking-[0.12em] ${session?.alive ? "border-[#e86f3a]/40 bg-[#1f1f1f] text-[#f4f1e8]" : "border-[#3f3f3f] bg-[#1f1f1f] text-[#a8a29a]"}`}>
             <TerminalIcon size={10} className="text-[#a8a29a]" />
             <span className="text-[#a8a29a]">Terminal:</span>
             <span className={`cc-live-dot inline-block h-[6px] w-[6px] rounded-full ${dotColor}`} />
@@ -293,7 +293,7 @@ export function TerminalPane() {
                 onChange={(e) => pickCli(e.target.value)}
                 disabled={loadingAdapters}
                 title="Terminal CLI is independent of the Settings active provider — pick any installed CLI here"
-                className="h-[22px] rounded-[1px] border border-[#3f3f3f] bg-[#1f1f1f] px-2 text-[0.58rem] uppercase tracking-[0.14em] text-[#a8a29a] outline-none focus:border-[#e86f3a]"
+                className="h-8 rounded-[1px] border border-[#3f3f3f] bg-[#1f1f1f] px-3 text-[0.72rem] uppercase tracking-[0.12em] text-[#a8a29a] outline-none focus:border-[#e86f3a]"
               >
                 {adapters.map((a) => (
                   <option key={a.id} value={a.id}>
@@ -302,7 +302,7 @@ export function TerminalPane() {
                 ))}
               </select>
               <button type="button" onClick={startSession} disabled={isPending}
-                className="flex h-[22px] items-center gap-1 rounded-[1px] border border-[#79a875]/50 bg-[#1f1f1f] px-2 text-[0.58rem] font-bold uppercase tracking-[0.14em] text-[#79a875] transition hover:border-[#79a875] hover:bg-[#0d1a0d] disabled:cursor-wait disabled:opacity-50"
+                className="flex h-8 items-center gap-2 rounded-[1px] border border-[#79a875]/50 bg-[#1f1f1f] px-3 text-[0.72rem] font-bold uppercase tracking-[0.12em] text-[#79a875] transition hover:border-[#79a875] hover:bg-[#0d1a0d] disabled:cursor-wait disabled:opacity-50"
                 title="Start session">
                 {isPending ? <Loader2 size={9} className="animate-spin" /> : <Power size={9} />}
                 {isPending ? "Starting..." : "Start"}
@@ -311,20 +311,20 @@ export function TerminalPane() {
           ) : null}
 
           <button type="button" aria-label="New tab" tabIndex={-1}
-            className="flex h-[22px] w-[22px] items-center justify-center rounded-[1px] border border-[#3f3f3f] bg-[#1f1f1f] text-[#6f6a61] transition hover:border-[#e86f3a] hover:text-[#e86f3a]">
+            className="flex h-8 w-8 items-center justify-center rounded-[1px] border border-[#3f3f3f] bg-[#1f1f1f] text-[#6f6a61] transition hover:border-[#e86f3a] hover:text-[#e86f3a]">
             <Plus size={11} />
           </button>
 
-          {errorMsg ? <span className="ml-1 text-[0.58rem] text-[#c4605a]">{errorMsg}</span> : null}
+          {errorMsg ? <span className="ml-1 text-[0.72rem] text-[#c4605a]">{errorMsg}</span> : null}
           {!session?.alive && adapters.find((a) => a.id === selectedCli && !a.available) ? (
-            <span className="max-w-[280px] truncate text-[0.58rem] text-[#c99a45]">
+            <span className="max-w-[320px] truncate text-[0.72rem] text-[#c99a45]">
               missing: {adapters.find((a) => a.id === selectedCli)?.installHint ?? adapters.find((a) => a.id === selectedCli)?.command}
             </span>
           ) : null}
         </div>
 
         <button type="button" onClick={() => setOpen((v) => !v)}
-          className="flex h-[22px] w-[22px] items-center justify-center rounded-[1px] border border-[#3f3f3f] bg-[#1f1f1f] text-[#6f6a61] transition hover:border-[#e86f3a] hover:text-[#e86f3a]"
+          className="flex h-8 w-8 items-center justify-center rounded-[1px] border border-[#3f3f3f] bg-[#1f1f1f] text-[#6f6a61] transition hover:border-[#e86f3a] hover:text-[#e86f3a]"
           aria-label={open ? "Collapse terminal" : "Expand terminal"}>
           {open ? <ChevronDown size={11} /> : <ChevronUp size={11} />}
         </button>
@@ -343,7 +343,7 @@ export function TerminalPane() {
               <ChevronRight size={11} />
             </button>
           </div>
-          <div className="text-center text-[0.58rem] uppercase tracking-[0.16em] text-[#a8a29a]">
+          <div className="text-center text-[0.72rem] uppercase tracking-[0.12em] text-[#a8a29a]">
             Terminal:
             <span className={`cc-live-dot ml-2 inline-block h-[6px] w-[6px] rounded-full align-middle ${dotColor}`} />
             <span className="ml-2 text-[#f4f1e8]">{activeLabel}</span>
@@ -355,7 +355,7 @@ export function TerminalPane() {
       {/* ── xterm.js viewport ── */}
       <div
         className="transition-[height] duration-200"
-        style={{ height: open ? "246px" : "0px", overflow: "hidden" }}
+        style={{ height: open ? "300px" : "0px", overflow: "hidden" }}
       >
         <div
           ref={containerRef}

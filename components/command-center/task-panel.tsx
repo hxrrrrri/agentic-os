@@ -57,25 +57,25 @@ export function TaskPanel({ initialTasks }: Props) {
   }
 
   return (
-    <div className="rounded-[3px] border border-[#2a302c] bg-[#0b0d0a] p-3">
-      <div className="mb-2 flex items-center justify-between">
-        <span className="text-[0.56rem] uppercase tracking-[0.18em] text-[#a8a29a]">Daily Tasks</span>
-        <span className="text-[0.56rem] uppercase tracking-[0.14em] text-[#6f6a61]">
+    <div className="cc-panel cc-panel-muted min-h-[154px] overflow-hidden p-[16px_18px]">
+      <div className="relative z-[1] mb-3 flex items-center justify-between gap-3">
+        <span className="text-[0.82rem] uppercase tracking-[0.12em] text-[#a8a29a]">Daily Tasks</span>
+        <span className="text-[0.84rem] uppercase tracking-[0.1em] text-[#8d877e]">
           <span className="text-[#e86f3a]">{doneCount}</span>/{tasks.length}
         </span>
       </div>
 
-      <div className="grid grid-cols-2 gap-x-4 gap-y-[6px]">
+      <div className="relative z-[1] grid grid-cols-1 gap-x-6 gap-y-[10px] sm:grid-cols-2">
         {tasks.map((task) => (
           <button
             key={task.id}
             type="button"
             onClick={() => toggle(task.id)}
             disabled={isPending}
-            className="flex items-center gap-2 text-left text-[0.7rem] text-[#f4f1e8] transition hover:text-[#e86f3a] disabled:opacity-70"
+            className="flex items-center gap-3 text-left text-[0.98rem] text-[#f4f1e8] transition hover:text-[#e86f3a] disabled:opacity-70"
           >
             <span
-              className={`inline-flex h-[12px] w-[12px] flex-shrink-0 items-center justify-center rounded-[2px] border ${
+              className={`inline-flex h-[15px] w-[15px] flex-shrink-0 items-center justify-center rounded-[2px] border ${
                 task.done ? "border-[#e86f3a] bg-[#e86f3a]/30" : "border-[#3d4239] bg-[#10120f]"
               }`}
             >
@@ -94,7 +94,7 @@ export function TaskPanel({ initialTasks }: Props) {
             e.preventDefault();
             submitAdd();
           }}
-          className="mt-3 flex items-center gap-2"
+          className="relative z-[1] mt-3 flex items-center gap-2"
         >
           <input
             autoFocus
@@ -102,14 +102,14 @@ export function TaskPanel({ initialTasks }: Props) {
             onChange={(e) => setDraft(e.target.value)}
             onBlur={submitAdd}
             placeholder="New task..."
-            className="flex-1 rounded-[2px] border border-[#2a302c] bg-[#10120f] px-2 py-1 text-[0.7rem] text-[#f4f1e8] outline-none focus:border-[#e86f3a]"
+            className="flex-1 rounded-[2px] border border-[#2a302c] bg-[#10120f] px-3 py-2 text-[0.9rem] text-[#f4f1e8] outline-none focus:border-[#e86f3a]"
           />
         </form>
       ) : (
         <button
           type="button"
           onClick={() => setAdding(true)}
-          className="mt-3 inline-flex items-center gap-1 text-[0.6rem] uppercase tracking-[0.16em] text-[#6f6a61] transition hover:text-[#e86f3a]"
+          className="relative z-[1] mt-4 inline-flex items-center gap-2 text-[0.76rem] uppercase tracking-[0.14em] text-[#8d877e] transition hover:text-[#e86f3a]"
         >
           <Plus size={10} /> add task
         </button>

@@ -1,7 +1,6 @@
-import { AudiencePanel } from "@/components/command-center/audience-panel";
+import { ActivityFeed } from "@/components/command-center/activity-feed";
 import { CommandBar } from "@/components/command-center/command-bar";
 import { CommandCenterShell } from "@/components/command-center/cc-shell";
-import { FirecrawlPanel } from "@/components/command-center/firecrawl-panel";
 import { LatestUpload } from "@/components/command-center/latest-upload";
 import { ResearchPanel } from "@/components/command-center/research-panel";
 import { SchedulePanel } from "@/components/command-center/schedule-panel";
@@ -18,10 +17,10 @@ export default async function CommandCenterPage() {
   const data = await getCommandCenterData();
 
   return (
-    <div className="flex flex-col bg-[#0c0e0b]">
+    <div className="cc-shell flex min-h-full flex-col">
       <CommandCenterShell
         overview={
-          <div className="space-y-3">
+          <div className="space-y-[10px]">
             <TokenBurn
               percent={data.tokenBurn.percent}
               used={data.tokenBurn.used}
@@ -38,21 +37,40 @@ export default async function CommandCenterPage() {
               age={data.latestUpload.age}
             />
             <CommandBar />
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <div className="grid grid-cols-1 gap-[10px] md:grid-cols-2">
               <SchedulePanel slots={data.schedule} />
               <TaskPanel initialTasks={data.tasks} />
             </div>
-            <WeeklyReview data={data.weeklyReview} />
-            <TerminalPane />
+            <div className="cc-terminal-dock">
+              <TerminalPane />
+            </div>
           </div>
         }
-        audience={<AudiencePanel />}
-        research={
-          <div className="space-y-3">
+        audience={
+          <div className="space-y-[10px]">
+            <SocialTiles tiles={data.socialTiles} />
+            <LatestUpload
+              title={data.latestUpload.title}
+              views={data.latestUpload.views}
+              likes={data.latestUpload.likes}
+              comments={data.latestUpload.comments}
+              age={data.latestUpload.age}
+            />
             <CommandBar />
-            <FirecrawlPanel />
+            <WeeklyReview data={data.weeklyReview} />
+            <div className="cc-terminal-dock">
+              <TerminalPane />
+            </div>
+          </div>
+        }
+        research={
+          <div className="space-y-[10px]">
+            <CommandBar />
             <ResearchPanel repos={data.repos} hnItems={data.hnItems} />
-            <TerminalPane />
+            <ActivityFeed items={data.activity} />
+            <div className="cc-terminal-dock">
+              <TerminalPane />
+            </div>
           </div>
         }
       />

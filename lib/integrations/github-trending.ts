@@ -25,7 +25,7 @@ function decodeEntities(s: string): string {
 export async function fetchGhTrending(limit = 5): Promise<RepoItem[] | null> {
   try {
     const res = await fetch(TRENDING_URL, {
-      next: { revalidate: 1800 },
+      next: { revalidate: 60 },
       headers: {
         "User-Agent":
           "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 AgenticOS/0.1",

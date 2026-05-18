@@ -417,10 +417,12 @@ async function executeWorkflow(run: Run, plan: AgentPlan, request: RunRequest): 
     await runWorkflowSteps(run, plan, request);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Workflow failed";
+    const detail = error instanceof Error && error.stack ? error.stack : String(error);
     run.status = "failed";
     run.endedAt = nowIso();
     run.durationMs = +new Date(run.endedAt) - +new Date(run.startedAt);
     run.errors = [message];
+    run.errorDetail = detail.slice(0, 8000);
     run.finalOutput = `# Error\n\n${message}`;
     await updateRun(run, plan).catch(() => {});
     emitRunEvent({ runId: run.id, type: "run.failed", payload: { error: message } });
@@ -489,6 +491,9 @@ async function runWorkflowSteps(run: Run, plan: AgentPlan, request: RunRequest):
     if (planStep.requiresApproval && !request.dryRun) {
       call.status = "blocked";
       call.output = "Blocked pending explicit approval.";
+      // 24h default expiry for any approval — recovery sweep flips stale rows
+      // to `expired` so the inbox doesn't grow unbounded.
+      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
       const approval: ApprovalRequest = {
         id: createId("approval"),
         runId: run.id,
@@ -500,6 +505,7 @@ async function runWorkflowSteps(run: Run, plan: AgentPlan, request: RunRequest):
         explanation: "This action can mutate external systems or local files beyond routine artifact writing.",
         status: "pending",
         createdAt: nowIso(),
+        expiresAt,
       };
       await insertApproval(approval);
       run.approvals.push(approval.id);

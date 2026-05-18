@@ -78,7 +78,7 @@ export function CommandBar() {
   }
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-[8px]">
       <Row buttons={row1} run={run} pendingId={pendingId} />
       <Row buttons={row2} run={run} pendingId={pendingId} />
     </div>
@@ -95,7 +95,7 @@ function Row({
   pendingId: string | null;
 }) {
   return (
-    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-5">
+    <div className="grid grid-cols-1 gap-[8px] sm:grid-cols-2 md:grid-cols-5">
       {buttons.map((btn) => {
         const pending = pendingId === btn.skillId;
         return (
@@ -104,10 +104,10 @@ function Row({
             type="button"
             onClick={() => run(btn)}
             disabled={pendingId !== null}
-            className={`group flex h-11 items-center justify-center gap-[6px] rounded-[3px] border px-3 text-[0.66rem] font-bold uppercase tracking-[0.14em] transition disabled:cursor-wait disabled:opacity-60 ${
+            className={`group flex h-10 items-center justify-center gap-[8px] rounded-[1px] border px-4 text-[0.82rem] font-bold uppercase tracking-[0.1em] shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition disabled:cursor-wait disabled:opacity-60 ${
               pending
-                ? "border-[#e86f3a] bg-[#1d1612] text-[#e86f3a]"
-                : "border-[#2a302c] bg-[#101210] text-[#f4f1e8] hover:border-[#e86f3a] hover:bg-[#1a1310] hover:text-[#e86f3a]"
+                ? "border-[#e97848] bg-[#241813] text-[#e97848]"
+                : "border-[#555] bg-[#303030] text-[#f4f1e8] hover:border-[#e97848]/70 hover:bg-[#383838] hover:text-[#f4f1e8]"
             }`}
           >
             <span className="truncate">{pending ? "…running" : btn.label}</span>

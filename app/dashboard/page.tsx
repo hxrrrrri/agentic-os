@@ -4,6 +4,7 @@ import { PromptConsole } from "@/components/dashboard/prompt-console";
 import { DashboardSidebar } from "@/components/dashboard/sidebar-panels";
 import { IntegrationsBar } from "@/components/dashboard/integrations-bar";
 import { MetricCard } from "@/components/dashboard/metric-card";
+import { UsagePanel } from "@/components/dashboard/usage-panel";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { listIntegrations, listRuns } from "@/lib/db/repositories";
 import { usageMetrics, buildActivitySeries, lastSevenDays } from "@/lib/mock/metrics";
@@ -63,6 +64,10 @@ export default async function DashboardPage() {
         </CardHeader>
         <ActivityChart data={activity} />
       </Card>
+
+      <Suspense fallback={<div className="terminal-panel p-3 text-sm text-[#a8a29a]">Loading usage...</div>}>
+        <UsagePanel />
+      </Suspense>
 
       <IntegrationsBar integrations={integrations} />
 

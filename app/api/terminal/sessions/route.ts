@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { CLI_ADAPTERS, getAdapterStatus } from "@/lib/terminal/adapters";
-import { createSession, listSessions } from "@/lib/terminal/manager";
+import { createSession, killAllSessions, listSessions } from "@/lib/terminal/manager";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -24,4 +24,9 @@ export async function POST(request: Request) {
       { status: 400 },
     );
   }
+}
+
+export async function DELETE() {
+  killAllSessions();
+  return NextResponse.json({ ok: true });
 }

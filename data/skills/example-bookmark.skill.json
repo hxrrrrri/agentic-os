@@ -1,0 +1,12 @@
+{
+  "id": "example-bookmark",
+  "name": "Bookmark Inbox URL",
+  "category": "memory",
+  "description": "Drop a URL into the inbox folder with auto-tags. Folder-loaded marketplace skill.",
+  "template": "Extract the main URL from the prompt, fetch its title (Firecrawl scrape), and write a minimal bookmark note into vault/raw with auto-detected tags.",
+  "requiredIntegrations": ["firecrawl"],
+  "riskLevel": "low",
+  "outputLocation": "/vault/raw",
+  "enabled": true,
+  "executionMode": "dry-run"
+}

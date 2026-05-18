@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getProvider } from "@/lib/agent/providers";
-import { isClaudeCliAvailable, isCodexCliAvailable, isCopilotCliAvailable, listCopilotCliModels } from "@/lib/agent/cli";
+import { isClaudeCliAvailable, isCodexCliAvailable, isCopilotCliAvailable, isGeminiCliAvailable, listCopilotCliModels } from "@/lib/agent/cli";
+import { getSecret } from "@/lib/secrets/store";
 
 interface OllamaTagsResponse {
   models?: Array<{ name?: string; model?: string }>;
@@ -119,6 +120,62 @@ export async function GET(
       return json(200, { models: orderedModels(await listCopilotCliModels(), provider.models ?? [provider.model]) });
     } catch {
       return json(200, { models: normalizeModels(provider.models ?? [provider.model]) });
+    }
+  }
+
+  if (provider.id === "gemini-cli") {
+    const available = await isGeminiCliAvailable();
+    if (!available) {
+      return json(503, {
+        models: normalizeModels(provider.models ?? [provider.model]),
+        error: "Gemini CLI not found on PATH. Install with: npm install -g @google/gemini-cli",
+      });
+    }
+    return json(200, { models: normalizeModels(provider.models ?? [provider.model]) });
+  }
+
+  if (provider.id === "openai") {
+    const apiKey = (await getSecret("OPENAI_API_KEY")) ?? process.env.OPENAI_API_KEY;
+    if (!apiKey) {
+      return json(401, { models: normalizeModels(provider.models ?? [provider.model]), error: "OPENAI_API_KEY is not configured." });
+    }
+    try {
+      const response = await fetch("https://api.openai.com/v1/models", {
+        cache: "no-store",
+        headers: { Authorization: `Bearer ${apiKey}` },
+      });
+      if (!response.ok) {
+        return json(response.status, { models: normalizeModels(provider.models ?? [provider.model]), error: "OpenAI model list unavailable." });
+      }
+      const body = (await response.json()) as OpenAIModelsResponse;
+      const ids = (body.data ?? [])
+        .map((m) => m.id)
+        .filter((id): id is string => typeof id === "string")
+        .filter((id) => /^(gpt-|o[1-9]|chatgpt)/.test(id));
+      return json(200, { models: orderedModels(ids, provider.models ?? [provider.model]) });
+    } catch {
+      return json(503, { models: normalizeModels(provider.models ?? [provider.model]), error: "Could not reach OpenAI." });
+    }
+  }
+
+  if (provider.id === "anthropic") {
+    const apiKey = (await getSecret("ANTHROPIC_API_KEY")) ?? process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) {
+      return json(401, { models: normalizeModels(provider.models ?? [provider.model]), error: "ANTHROPIC_API_KEY is not configured." });
+    }
+    try {
+      const response = await fetch("https://api.anthropic.com/v1/models", {
+        cache: "no-store",
+        headers: { "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
+      });
+      if (!response.ok) {
+        return json(response.status, { models: normalizeModels(provider.models ?? [provider.model]), error: "Anthropic model list unavailable." });
+      }
+      const body = (await response.json()) as { data?: Array<{ id?: string }> };
+      const ids = (body.data ?? []).map((m) => m.id).filter((id): id is string => typeof id === "string");
+      return json(200, { models: orderedModels(ids, provider.models ?? [provider.model]) });
+    } catch {
+      return json(503, { models: normalizeModels(provider.models ?? [provider.model]), error: "Could not reach Anthropic." });
     }
   }
 

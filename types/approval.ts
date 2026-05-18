@@ -14,6 +14,9 @@ export interface ApprovalRequest {
   status: ApprovalStatus;
   createdAt: string;
   resolvedAt?: string;
+  /** Approval auto-expires at this ISO timestamp if still pending. The
+   *  recovery sweep (`expireStaleApprovals`) marks it `expired`. */
+  expiresAt?: string;
 }
 
 export interface AuditLog {

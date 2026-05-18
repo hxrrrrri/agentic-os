@@ -19,6 +19,7 @@ type RunRow = {
   errors_json: string;
   final_output?: string;
   created_artifacts_json: string;
+  error_detail?: string;
 };
 
 function parseJson<T>(value: string | undefined | null, fallback: T): T {
@@ -86,7 +87,7 @@ export async function updateRun(run: Run, plan?: AgentPlan) {
   const db = await getDb();
   db.run(
     `UPDATE runs SET status = ?, ended_at = ?, duration_ms = ?, tokens_estimate = ?, cost_estimate = ?,
-       plan_json = COALESCE(?, plan_json), files_touched_json = ?, errors_json = ?, final_output = ?, created_artifacts_json = ?
+       plan_json = COALESCE(?, plan_json), files_touched_json = ?, errors_json = ?, final_output = ?, created_artifacts_json = ?, error_detail = ?
      WHERE id = ?`,
     [
       run.status,
@@ -99,6 +100,7 @@ export async function updateRun(run: Run, plan?: AgentPlan) {
       JSON.stringify(run.errors),
       run.finalOutput ?? null,
       JSON.stringify(run.createdArtifacts),
+      run.errorDetail ?? null,
       run.id,
     ],
   );
@@ -139,8 +141,8 @@ export async function insertToolCall(toolCall: ToolCall) {
 export async function insertApproval(approval: ApprovalRequest) {
   const db = await getDb();
   db.run(
-    `INSERT INTO approvals (id, run_id, action, integration, affected_resource, command_or_payload, risk_level, explanation, status, created_at, resolved_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO approvals (id, run_id, action, integration, affected_resource, command_or_payload, risk_level, explanation, status, created_at, resolved_at, expires_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       approval.id,
       approval.runId,
@@ -153,9 +155,28 @@ export async function insertApproval(approval: ApprovalRequest) {
       approval.status,
       approval.createdAt,
       approval.resolvedAt ?? null,
+      approval.expiresAt ?? null,
     ],
   );
   await saveDb();
+}
+
+// Marks any still-pending approvals past their `expires_at` as `expired`.
+// Returns the count of approvals that were expired. Safe to call repeatedly.
+export async function expireStaleApprovals(): Promise<number> {
+  const db = await getDb();
+  const now = nowIso();
+  const result = db.exec(
+    `SELECT id FROM approvals WHERE status = 'pending' AND expires_at IS NOT NULL AND expires_at < ?`,
+    [now],
+  );
+  const ids = (result[0]?.values ?? []).map((row) => String(row[0]));
+  if (!ids.length) return 0;
+  for (const id of ids) {
+    db.run("UPDATE approvals SET status = 'expired', resolved_at = ? WHERE id = ?", [now, id]);
+  }
+  await saveDb();
+  return ids.length;
 }
 
 export async function updateApproval(id: string, status: ApprovalRequest["status"]) {
@@ -201,6 +222,7 @@ export async function listRuns(limit = 100): Promise<Run[]> {
     approvals: approvals.filter((approval) => approval.runId === run.id).map((approval) => approval.id),
     filesTouched: parseJson<string[]>(run.files_touched_json, []),
     errors: parseJson<string[]>(run.errors_json, []),
+    errorDetail: run.error_detail,
     finalOutput: run.final_output,
     createdArtifacts: parseJson<string[]>(run.created_artifacts_json, []),
   }));
@@ -233,6 +255,7 @@ export async function getRun(id: string): Promise<Run | undefined> {
     approvals: approvals.filter((a) => a.runId === id).map((a) => a.id),
     filesTouched: parseJson<string[]>(row.files_touched_json, []),
     errors: parseJson<string[]>(row.errors_json, []),
+    errorDetail: row.error_detail,
     finalOutput: row.final_output,
     createdArtifacts: parseJson<string[]>(row.created_artifacts_json, []),
   };
@@ -324,35 +347,50 @@ async function listToolCalls(runIds: string[]): Promise<ToolCall[]> {
   return out;
 }
 
+interface ApprovalRow {
+  id: string;
+  run_id: string;
+  action: string;
+  integration: string;
+  affected_resource: string;
+  command_or_payload: string;
+  risk_level: ApprovalRequest["riskLevel"];
+  explanation: string;
+  status: ApprovalRequest["status"];
+  created_at: string;
+  resolved_at?: string;
+  expires_at?: string;
+}
+
+function approvalFromRow(row: ApprovalRow): ApprovalRequest {
+  return {
+    id: row.id,
+    runId: row.run_id,
+    action: row.action,
+    integration: row.integration,
+    affectedResource: row.affected_resource,
+    commandOrPayload: row.command_or_payload,
+    riskLevel: row.risk_level,
+    explanation: row.explanation,
+    status: row.status,
+    createdAt: row.created_at,
+    resolvedAt: row.resolved_at,
+    expiresAt: row.expires_at,
+  };
+}
+
+export async function getApproval(id: string): Promise<ApprovalRequest | undefined> {
+  const db = await getDb();
+  const result = rows<ApprovalRow>(db.exec(`SELECT * FROM approvals WHERE id = ?`, [id]));
+  const approval = result[0];
+  return approval ? approvalFromRow(approval) : undefined;
+}
+
 export async function listApprovals(status?: ApprovalRequest["status"]): Promise<ApprovalRequest[]> {
   const db = await getDb();
   const query = status ? "SELECT * FROM approvals WHERE status = ? ORDER BY created_at DESC" : "SELECT * FROM approvals ORDER BY created_at DESC";
-  const result = rows<{
-    id: string;
-    run_id: string;
-    action: string;
-    integration: string;
-    affected_resource: string;
-    command_or_payload: string;
-    risk_level: ApprovalRequest["riskLevel"];
-    explanation: string;
-    status: ApprovalRequest["status"];
-    created_at: string;
-    resolved_at?: string;
-  }>(status ? db.exec(query, [status]) : db.exec(query));
-  return result.map((approval) => ({
-    id: approval.id,
-    runId: approval.run_id,
-    action: approval.action,
-    integration: approval.integration,
-    affectedResource: approval.affected_resource,
-    commandOrPayload: approval.command_or_payload,
-    riskLevel: approval.risk_level,
-    explanation: approval.explanation,
-    status: approval.status,
-    createdAt: approval.created_at,
-    resolvedAt: approval.resolved_at,
-  }));
+  const result = rows<ApprovalRow>(status ? db.exec(query, [status]) : db.exec(query));
+  return result.map(approvalFromRow);
 }
 
 export async function listIntegrations(): Promise<Integration[]> {
@@ -467,6 +505,34 @@ export async function listMemoryItems(limit = 100): Promise<MemoryItem[]> {
   }));
 }
 
+export async function getMemoryItemsByIds(ids: string[]): Promise<MemoryItem[]> {
+  if (ids.length === 0) return [];
+  const db = await getDb();
+  const placeholders = ids.map(() => "?").join(",");
+  const result = rows<{
+    id: string;
+    file_path: string;
+    title: string;
+    type: MemoryItem["type"];
+    tags_json: string;
+    summary: string;
+    last_updated: string;
+    embedding_placeholder: string;
+    importance_score: number;
+  }>(db.exec(`SELECT * FROM memory_index WHERE id IN (${placeholders})`, ids));
+  return result.map((item) => ({
+    id: item.id,
+    filePath: item.file_path,
+    title: item.title,
+    type: item.type,
+    tags: parseJson(item.tags_json, []),
+    summary: item.summary,
+    lastUpdated: item.last_updated,
+    embeddingPlaceholder: item.embedding_placeholder,
+    importanceScore: item.importance_score,
+  }));
+}
+
 export async function addAuditLog(log: Omit<AuditLog, "id" | "timestamp">) {
   const db = await getDb();
   db.run(
@@ -507,13 +573,11 @@ function selectRows<T extends object>(
   sql: string,
   params: (string | number | null)[] = [],
 ): T[] {
+  // Both sql.js and the better-sqlite3 shim expose exec(sql, params) returning
+  // [{ columns, values }]. Avoid the prepare/bind/step path so the native
+  // adapter (which has no prepare/step surface) keeps working.
   if (!params.length) return rows<T>(db.exec(sql));
-  const stmt = db.prepare(sql);
-  stmt.bind(params);
-  const out: T[] = [];
-  while (stmt.step()) out.push(stmt.getAsObject() as T);
-  stmt.free();
-  return out;
+  return rows<T>(db.exec(sql, params));
 }
 
 export async function upsertVaultNode(node: VaultNode): Promise<void> {
@@ -547,11 +611,15 @@ export async function clearVaultLinks(source: string): Promise<void> {
 
 export async function updateBacklinkCounts(): Promise<void> {
   const db = await getDb();
+  // Match by title OR resolved_path OR by the bare filename slug — that last
+  // arm catches links whose `target` is just the note's basename even when
+  // the link was never "resolved" to a full path.
   db.run(`
     UPDATE vault_nodes SET backlink_count = (
       SELECT COUNT(*) FROM vault_links
       WHERE vault_links.target = vault_nodes.title
          OR vault_links.resolved_path = vault_nodes.path
+         OR vault_links.target = REPLACE(SUBSTR(vault_nodes.path, INSTR(vault_nodes.path, '/') + 1), '.md', '')
     )
   `);
   await saveDb();
@@ -560,10 +628,12 @@ export async function updateBacklinkCounts(): Promise<void> {
 export async function getBacklinks(notePath: string): Promise<VaultLink[]> {
   const db = await getDb();
   const noteName = notePath.replace(/^.*\//, "").replace(/\.md$/, "");
+  // Match by resolved path OR by short slug — covers both resolved and
+  // unresolved wikilinks pointing at this note.
   return selectRows<{ source: string; target: string; resolved_path: string | null }>(
     db,
-    "SELECT source, target, resolved_path FROM vault_links WHERE resolved_path = ? OR target = ?",
-    [notePath, noteName],
+    "SELECT source, target, resolved_path FROM vault_links WHERE resolved_path = ? OR target = ? OR target = ?",
+    [notePath, noteName, notePath],
   ).map((r) => ({ source: r.source, target: r.target, resolvedPath: r.resolved_path }));
 }
 

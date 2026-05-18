@@ -1,6 +1,8 @@
 import cron, { ScheduledTask } from "node-cron";
 import { listRoutines, touchRoutine, addAuditLog } from "@/lib/db/repositories";
-import { createAndRunWorkflow } from "@/lib/agent/engine";
+import { enqueueJob, startJobWorker } from "@/lib/jobs/queue";
+import { ensureRoutineJobHandler } from "@/lib/jobs/routine-runner";
+import { ensureGradeJobHandler } from "@/lib/jobs/grade-runner";
 import type { Routine } from "@/types";
 
 const tasks = new Map<string, ScheduledTask>();
@@ -31,21 +33,22 @@ async function fireRoutine(routine: Routine) {
   try {
     await addAuditLog({
       actor: "scheduler",
-      action: `fired routine: ${routine.name}`,
+      action: `enqueued routine: ${routine.name}`,
       integration: "agenticos",
       riskLevel: "low",
       result: "completed",
     });
-    await createAndRunWorkflow({
-      prompt: `Scheduled routine: ${routine.name}. ${routine.description}`,
+    await enqueueJob("routine.run", {
+      routineId: routine.id,
       skillId: routine.skillId,
+      prompt: `Scheduled routine: ${routine.name}. ${routine.description}`,
       dryRun: routine.approvalMode !== "auto",
     });
     await touchRoutine(routine.id);
   } catch (error) {
     await addAuditLog({
       actor: "scheduler",
-      action: `routine failed: ${routine.name} — ${error instanceof Error ? error.message : "unknown"}`,
+      action: `routine enqueue failed: ${routine.name} — ${error instanceof Error ? error.message : "unknown"}`,
       integration: "agenticos",
       riskLevel: "medium",
       result: "failed",
@@ -69,6 +72,9 @@ function scheduleRoutine(routine: Routine) {
 export async function startScheduler() {
   if (started) return;
   started = true;
+  ensureRoutineJobHandler();
+  ensureGradeJobHandler();
+  startJobWorker();
   const routines = await listRoutines();
   routines.forEach(scheduleRoutine);
 }

@@ -50,6 +50,10 @@ export interface Run {
   approvals: string[];
   filesTouched: string[];
   errors: string[];
+  /** Verbose error context — stack trace and provider response body. Surfaced
+   *  on the run detail page when status === "failed" so debugging doesn't
+   *  require digging through logs. */
+  errorDetail?: string;
   finalOutput?: string;
   createdArtifacts: string[];
 }

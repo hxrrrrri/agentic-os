@@ -16,8 +16,38 @@ const useNative = isNativeAvailable();
 
 async function getSql() {
   if (!SQL) {
+    // The wasm file ships inside `sql.js/dist/sql-wasm.wasm`. Resolution has
+    // to work in three environments:
+    //   - Dev / prod: process.cwd() is the repo root
+    //   - Vitest:     process.cwd() is a per-test temp dir (no node_modules)
+    //   - Turbopack:  require.resolve("sql.js") returns a virtual `[externals]`
+    //                 path that does NOT exist on disk
+    // Probe filesystem candidates and pick the first that has the wasm file.
+    const probeFile = "sql-wasm.wasm";
+    const candidates: string[] = [path.join(process.cwd(), "node_modules", "sql.js", "dist")];
+
+    // `sql.js/package.json` resolves to a real file (package.json is bundler-
+    // safe), so we can use it to locate the installed package root. The
+    // `eval("require")` keeps this out of Turbopack's static graph — otherwise
+    // sql.js's external marking causes a compile-time "Module not found"
+    // warning even though the runtime path is fine.
+    try {
+      const runtimeRequire = eval("require") as NodeRequire;
+      const pkgPath = runtimeRequire.resolve("sql.js/package.json");
+      candidates.push(path.join(path.dirname(pkgPath), "dist"));
+    } catch {}
+
+    let wasmDir = candidates[0];
+    for (const candidate of candidates) {
+      try {
+        if (fs.existsSync(path.join(candidate, probeFile))) {
+          wasmDir = candidate;
+          break;
+        }
+      } catch {}
+    }
     SQL = await initSqlJs({
-      locateFile: (file: string) => path.join(process.cwd(), "node_modules", "sql.js", "dist", file),
+      locateFile: (file: string) => path.join(wasmDir, file),
     });
   }
   return SQL;
@@ -119,6 +149,24 @@ export function saveDb(): Promise<void> {
     }, SAVE_DEBOUNCE_MS);
   });
   return savePending;
+}
+
+// Test-only helper. Closes the in-memory db handle so the test harness can
+// delete its temp directory on Windows without EBUSY. Safe to call in prod
+// too — the next getDb() will lazy-reopen.
+export async function closeDb(): Promise<void> {
+  if (saveTimer) {
+    clearTimeout(saveTimer);
+    saveTimer = null;
+  }
+  if (savePending) {
+    await savePending.catch(() => {});
+  }
+  try {
+    db?.close();
+  } catch {}
+  db = undefined;
+  initialized = false;
 }
 
 export async function saveDbNow(): Promise<void> {
@@ -526,7 +574,70 @@ async function initializeDb(database: Database) {
     );
   }
 
+  // Apply pending column migrations. CREATE TABLE IF NOT EXISTS does not add
+  // columns to a pre-existing table, so anything beyond the initial schema
+  // ships through here.
+  await runMigrations(database);
+
   await saveDb();
+}
+
+// ─── Schema migrations ──────────────────────────────────────────────────────
+// Each migration is { version, up(db) }. We store the current version in
+// `schema_version` and run anything newer in order. Migrations must be
+// idempotent (CHECK column existence before ALTER) so a partial-apply doesn't
+// brick the DB.
+interface Migration {
+  version: number;
+  description: string;
+  up: (db: Database) => void;
+}
+
+function columnExists(db: Database, table: string, column: string): boolean {
+  const result = db.exec(`PRAGMA table_info(${table})`);
+  const cols = result[0]?.values.map((row) => String(row[1])) ?? [];
+  return cols.includes(column);
+}
+
+const MIGRATIONS: Migration[] = [
+  {
+    version: 1,
+    description: "runs.error_detail (stack + provider body)",
+    up(db) {
+      if (!columnExists(db, "runs", "error_detail")) {
+        db.run("ALTER TABLE runs ADD COLUMN error_detail TEXT");
+      }
+    },
+  },
+  {
+    version: 2,
+    description: "approvals.expires_at + auto-timeout sweeper",
+    up(db) {
+      if (!columnExists(db, "approvals", "expires_at")) {
+        db.run("ALTER TABLE approvals ADD COLUMN expires_at TEXT");
+      }
+    },
+  },
+];
+
+async function runMigrations(database: Database): Promise<void> {
+  database.run(`
+    CREATE TABLE IF NOT EXISTS schema_version (
+      version INTEGER PRIMARY KEY,
+      applied_at TEXT NOT NULL,
+      description TEXT NOT NULL
+    );
+  `);
+  const result = database.exec("SELECT COALESCE(MAX(version), 0) AS v FROM schema_version");
+  const current = Number(result[0]?.values[0]?.[0] ?? 0);
+  const pending = MIGRATIONS.filter((m) => m.version > current).sort((a, b) => a.version - b.version);
+  for (const migration of pending) {
+    migration.up(database);
+    database.run(
+      "INSERT INTO schema_version (version, applied_at, description) VALUES (?, ?, ?)",
+      [migration.version, new Date().toISOString(), migration.description],
+    );
+  }
 }
 
 export function rows<T>(result: { columns: string[]; values: unknown[][] }[]): T[] {

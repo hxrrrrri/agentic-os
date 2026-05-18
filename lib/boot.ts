@@ -8,7 +8,7 @@
 
 import { startScheduler } from "@/lib/scheduler/worker";
 import { indexVaultGraph } from "@/lib/vault/graph";
-import { recoverStaleRuns } from "@/lib/agent/recovery";
+import { recoverAll } from "@/lib/agent/recovery";
 
 let booted = false;
 
@@ -16,8 +16,9 @@ export function ensureBoot(): void {
   if (booted) return;
   booted = true;
   // None of these block the caller — failures are swallowed so a single
-  // misconfigured subsystem can't break unrelated requests.
+  // misconfigured subsystem can't break unrelated requests. `recoverAll`
+  // covers stale runs + expired approvals in one pass.
   void startScheduler().catch(() => {});
   void indexVaultGraph().catch(() => {});
-  void recoverStaleRuns().catch(() => {});
+  void recoverAll().catch(() => {});
 }

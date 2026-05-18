@@ -2,10 +2,12 @@
  * Crash recovery. If the Node process dies mid-workflow, the run row stays
  * pinned at `planning` / `running` forever. On boot we sweep any non-terminal
  * runs older than RUN_STALE_MS and mark them failed so the SSE stream can
- * close out cleanly instead of polling indefinitely.
+ * close out cleanly instead of polling indefinitely. Same boot pass also
+ * times out any pending approvals past their `expires_at`.
  */
 
 import { getDb, saveDb } from "@/lib/db/client";
+import { expireStaleApprovals } from "@/lib/db/repositories";
 import { nowIso } from "@/lib/utils";
 
 const RUN_STALE_MS = 10 * 60 * 1000; // 10 minutes
@@ -36,4 +38,13 @@ export async function recoverStaleRuns(): Promise<{ recovered: number }> {
   }
   await saveDb();
   return { recovered: ids.length };
+}
+
+/** Periodic sweep — exposed so the scheduler can also call it. */
+export async function recoverAll(): Promise<{ runs: number; approvals: number }> {
+  const [{ recovered }, approvals] = await Promise.all([
+    recoverStaleRuns(),
+    expireStaleApprovals(),
+  ]);
+  return { runs: recovered, approvals };
 }

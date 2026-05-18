@@ -26,20 +26,22 @@ export interface FirecrawlCrawlResult {
   pages: FirecrawlCrawlPage[];
 }
 
+import { getSecret } from "@/lib/secrets/store";
+
 const BASE = "https://api.firecrawl.dev";
 
-function authHeaders(): HeadersInit | null {
-  const key = process.env.FIRECRAWL_API_KEY;
+async function authHeaders(): Promise<HeadersInit | null> {
+  const key = (await getSecret("FIRECRAWL_API_KEY")) ?? process.env.FIRECRAWL_API_KEY;
   if (!key) return null;
   return { Authorization: `Bearer ${key}`, "Content-Type": "application/json" };
 }
 
-export function isFirecrawlConfigured(): boolean {
-  return Boolean(process.env.FIRECRAWL_API_KEY);
+export async function isFirecrawlConfigured(): Promise<boolean> {
+  return Boolean((await getSecret("FIRECRAWL_API_KEY")) ?? process.env.FIRECRAWL_API_KEY);
 }
 
 export async function scrapeUrl(url: string): Promise<FirecrawlScrapeResult> {
-  const headers = authHeaders();
+  const headers = await authHeaders();
   if (!headers) throw new Error("FIRECRAWL_API_KEY not set");
   const res = await fetch(`${BASE}/v1/scrape`, {
     method: "POST",
@@ -70,7 +72,7 @@ export async function startCrawl(
   url: string,
   options: { limit?: number; maxDepth?: number; includePaths?: string[] } = {},
 ): Promise<string> {
-  const headers = authHeaders();
+  const headers = await authHeaders();
   if (!headers) throw new Error("FIRECRAWL_API_KEY not set");
   const res = await fetch(`${BASE}/v1/crawl`, {
     method: "POST",
@@ -102,7 +104,7 @@ export interface CrawlStatusResponse {
 }
 
 export async function getCrawlStatus(jobId: string): Promise<CrawlStatusResponse> {
-  const headers = authHeaders();
+  const headers = await authHeaders();
   if (!headers) throw new Error("FIRECRAWL_API_KEY not set");
   const res = await fetch(`${BASE}/v1/crawl/${encodeURIComponent(jobId)}`, {
     headers,
