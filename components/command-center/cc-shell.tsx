@@ -16,7 +16,7 @@ export function CommandCenterShell({
   return (
     <>
       <CommandCenterHeader activeTab={tab} onTabChange={setTab} />
-      <div className="px-5 py-4">
+      <div className="px-[8px] pb-0 pt-[8px]">
         <div hidden={tab !== "OVERVIEW"}>{overview}</div>
         <div hidden={tab !== "AUDIENCE"}>{audience}</div>
         <div hidden={tab !== "RESEARCH"}>{research}</div>

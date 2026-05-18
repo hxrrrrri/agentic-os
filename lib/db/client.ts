@@ -6,30 +6,60 @@ import { agenticosConfig } from "@/agenticos.config";
 import { seedIntegrations } from "@/data/seed-integrations";
 import { seedRoutines } from "@/data/seed-routines";
 import { ensureVault } from "@/lib/vault/service";
+import { isNativeAvailable, openNativeDb } from "@/lib/db/native-adapter";
 
 let SQL: SqlJsStatic | undefined;
 let db: Database | undefined;
 let initialized = false;
+let dbFileMtimeMs = 0;
+const useNative = isNativeAvailable();
 
 async function getSql() {
   if (!SQL) {
+    // The wasm file ships inside `sql.js/dist/sql-wasm.wasm`. Resolution has
+    // to work in three environments:
+    //   - Dev / prod: process.cwd() is the repo root
+    //   - Vitest:     process.cwd() is a per-test temp dir (no node_modules)
+    //   - Turbopack:  require.resolve("sql.js") returns a virtual `[externals]`
+    //                 path that does NOT exist on disk
+    // Probe filesystem candidates and pick the first that has the wasm file.
+    const probeFile = "sql-wasm.wasm";
+    const candidates: string[] = [path.join(process.cwd(), "node_modules", "sql.js", "dist")];
+
+    // `sql.js/package.json` resolves to a real file (package.json is bundler-
+    // safe), so we can use it to locate the installed package root. The
+    // `eval("require")` keeps this out of Turbopack's static graph — otherwise
+    // sql.js's external marking causes a compile-time "Module not found"
+    // warning even though the runtime path is fine.
+    try {
+      const runtimeRequire = eval("require") as NodeRequire;
+      const pkgPath = runtimeRequire.resolve("sql.js/package.json");
+      candidates.push(path.join(path.dirname(pkgPath), "dist"));
+    } catch {}
+
+    let wasmDir = candidates[0];
+    for (const candidate of candidates) {
+      try {
+        if (fs.existsSync(path.join(candidate, probeFile))) {
+          wasmDir = candidate;
+          break;
+        }
+      } catch {}
+    }
     SQL = await initSqlJs({
-      locateFile: (file: string) => path.join(process.cwd(), "node_modules", "sql.js", "dist", file),
+      locateFile: (file: string) => path.join(wasmDir, file),
     });
   }
   return SQL;
 }
 
-export async function getDb() {
+export async function getDb(): Promise<Database> {
   if (!db) {
-    const sql = await getSql();
-    await fsp.mkdir(path.dirname(agenticosConfig.databasePath), { recursive: true });
-    if (fs.existsSync(agenticosConfig.databasePath)) {
-      db = new sql.Database(fs.readFileSync(agenticosConfig.databasePath));
-    } else {
-      db = new sql.Database();
-    }
+    await loadDbFromDisk();
+  } else {
+    await reloadDbIfChanged();
   }
+  if (!db) throw new Error("Database failed to initialize");
   if (!initialized) {
     await initializeDb(db);
     initialized = true;
@@ -37,10 +67,135 @@ export async function getDb() {
   return db;
 }
 
-export async function saveDb() {
-  if (!db) return;
+async function getDbFileMtime() {
+  try {
+    return (await fsp.stat(agenticosConfig.databasePath)).mtimeMs;
+  } catch {
+    return 0;
+  }
+}
+
+async function loadDbFromDisk() {
   await fsp.mkdir(path.dirname(agenticosConfig.databasePath), { recursive: true });
-  fs.writeFileSync(agenticosConfig.databasePath, Buffer.from(db.export()));
+  if (useNative) {
+    db = openNativeDb(agenticosConfig.databasePath) as unknown as Database;
+    dbFileMtimeMs = await getDbFileMtime();
+    initialized = false;
+    return;
+  }
+  const sql = await getSql();
+  if (fs.existsSync(agenticosConfig.databasePath)) {
+    db = new sql.Database(fs.readFileSync(agenticosConfig.databasePath));
+    dbFileMtimeMs = await getDbFileMtime();
+  } else {
+    db = new sql.Database();
+    dbFileMtimeMs = 0;
+  }
+  initialized = false;
+}
+
+async function reloadDbIfChanged() {
+  // Native (better-sqlite3) persists on every write — no need to re-read for
+  // freshness. Only sql.js (in-memory backed) needs the mtime check.
+  if (useNative) return;
+  if (savePending || saveTimer) return;
+  const latestMtime = await getDbFileMtime();
+  if (!latestMtime || latestMtime <= dbFileMtimeMs + 1) return;
+
+  try {
+    db?.close();
+  } catch {}
+  await loadDbFromDisk();
+}
+
+let saveTimer: ReturnType<typeof setTimeout> | null = null;
+let savePending: Promise<void> | null = null;
+const SAVE_DEBOUNCE_MS = 250;
+
+async function writeNow() {
+  if (!db) return;
+  // better-sqlite3 writes through to the file on every statement, so there's
+  // nothing to serialize — short-circuit and avoid the sql.js export() cost.
+  if (useNative) {
+    dbFileMtimeMs = await getDbFileMtime();
+    return;
+  }
+  await fsp.mkdir(path.dirname(agenticosConfig.databasePath), { recursive: true });
+  const tmp = `${agenticosConfig.databasePath}.${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2)}.tmp`;
+  await fsp.writeFile(tmp, Buffer.from(db.export()));
+  await fsp.rename(tmp, agenticosConfig.databasePath);
+  dbFileMtimeMs = await getDbFileMtime();
+}
+
+export function saveDb(): Promise<void> {
+  // Native sqlite writes synchronously on every statement — no debounced export
+  // needed. Skip the 250ms timer so awaited saveDb() doesn't stall the workflow
+  // (with ~10 calls per run, the old path burned ~2.5s of pure latency).
+  if (useNative) return Promise.resolve();
+  if (savePending) return savePending;
+  savePending = new Promise<void>((resolve, reject) => {
+    if (saveTimer) clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => {
+      saveTimer = null;
+      writeNow()
+        .then(() => {
+          savePending = null;
+          resolve();
+        })
+        .catch((err) => {
+          savePending = null;
+          reject(err);
+        });
+    }, SAVE_DEBOUNCE_MS);
+  });
+  return savePending;
+}
+
+// Test-only helper. Closes the in-memory db handle so the test harness can
+// delete its temp directory on Windows without EBUSY. Safe to call in prod
+// too — the next getDb() will lazy-reopen.
+export async function closeDb(): Promise<void> {
+  if (saveTimer) {
+    clearTimeout(saveTimer);
+    saveTimer = null;
+  }
+  if (savePending) {
+    await savePending.catch(() => {});
+  }
+  try {
+    db?.close();
+  } catch {}
+  db = undefined;
+  initialized = false;
+}
+
+export async function saveDbNow(): Promise<void> {
+  if (saveTimer) {
+    clearTimeout(saveTimer);
+    saveTimer = null;
+  }
+  await writeNow();
+}
+
+// Flush on shutdown so debounced writes don't get lost.
+if (typeof process !== "undefined" && !(globalThis as { __agenticosFlushAttached?: boolean }).__agenticosFlushAttached) {
+  (globalThis as { __agenticosFlushAttached?: boolean }).__agenticosFlushAttached = true;
+  const flush = () => {
+    if (!db) return;
+    if (useNative) return; // native writes synchronously already
+    try {
+      fs.writeFileSync(agenticosConfig.databasePath, Buffer.from(db.export()));
+    } catch {}
+  };
+  process.on("beforeExit", flush);
+  process.on("SIGINT", () => {
+    flush();
+    process.exit(0);
+  });
+  process.on("SIGTERM", () => {
+    flush();
+    process.exit(0);
+  });
 }
 
 function run(database: Database, sql: string, params: Array<string | number | null> = []) {
@@ -176,6 +331,184 @@ async function initializeDb(database: Database) {
 
     CREATE INDEX IF NOT EXISTS idx_vault_links_source ON vault_links(source);
     CREATE INDEX IF NOT EXISTS idx_vault_links_target ON vault_links(target);
+
+    CREATE TABLE IF NOT EXISTS jobs (
+      id TEXT PRIMARY KEY,
+      kind TEXT NOT NULL,
+      payload_json TEXT NOT NULL,
+      status TEXT NOT NULL,
+      attempts INTEGER NOT NULL DEFAULT 0,
+      max_attempts INTEGER NOT NULL DEFAULT 3,
+      run_after TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      started_at TEXT,
+      completed_at TEXT,
+      error TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_jobs_status_runafter ON jobs(status, run_after);
+
+    CREATE TABLE IF NOT EXISTS memory_embeddings (
+      id TEXT PRIMARY KEY,
+      memory_id TEXT NOT NULL,
+      model TEXT NOT NULL,
+      dim INTEGER NOT NULL,
+      vector_b64 TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_memory_embeddings_memory ON memory_embeddings(memory_id);
+
+    CREATE TABLE IF NOT EXISTS usage_meter (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      day TEXT NOT NULL,
+      run_id TEXT,
+      skill_id TEXT,
+      provider TEXT,
+      model TEXT,
+      input_tokens INTEGER NOT NULL DEFAULT 0,
+      output_tokens INTEGER NOT NULL DEFAULT 0,
+      cost_usd REAL NOT NULL DEFAULT 0
+    );
+    CREATE INDEX IF NOT EXISTS idx_usage_meter_day ON usage_meter(day);
+
+    CREATE TABLE IF NOT EXISTS budgets (
+      id TEXT PRIMARY KEY,
+      window TEXT NOT NULL,
+      max_cost_usd REAL NOT NULL,
+      max_runs INTEGER,
+      updated_at TEXT NOT NULL
+    );
+
+    -- F1: Agent inbox
+    CREATE TABLE IF NOT EXISTS inbox_items (
+      id TEXT PRIMARY KEY,
+      source TEXT NOT NULL,
+      sender TEXT,
+      subject TEXT,
+      body TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'new',
+      draft_reply TEXT,
+      run_id TEXT,
+      received_at TEXT NOT NULL,
+      handled_at TEXT,
+      metadata_json TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_inbox_status ON inbox_items(status, received_at);
+
+    -- F2: Browser recorder traces
+    CREATE TABLE IF NOT EXISTS browser_traces (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      start_url TEXT,
+      steps_json TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      compiled_skill_id TEXT
+    );
+
+    -- F3: Workflows
+    CREATE TABLE IF NOT EXISTS workflows (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      description TEXT,
+      nodes_json TEXT NOT NULL,
+      edges_json TEXT NOT NULL,
+      trigger TEXT,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    -- F4: Workspaces + members
+    CREATE TABLE IF NOT EXISTS workspaces (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      slug TEXT UNIQUE NOT NULL,
+      created_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS workspace_members (
+      id TEXT PRIMARY KEY,
+      workspace_id TEXT NOT NULL,
+      user_email TEXT NOT NULL,
+      role TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      UNIQUE(workspace_id, user_email)
+    );
+
+    -- F5: Vault chunks for fine-grained semantic retrieval
+    CREATE TABLE IF NOT EXISTS vault_chunks (
+      id TEXT PRIMARY KEY,
+      file_path TEXT NOT NULL,
+      chunk_index INTEGER NOT NULL,
+      content TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      UNIQUE(file_path, chunk_index)
+    );
+    CREATE INDEX IF NOT EXISTS idx_vault_chunks_file ON vault_chunks(file_path);
+
+    -- F6: Prompt cache for cost governor
+    CREATE TABLE IF NOT EXISTS prompt_cache (
+      hash TEXT PRIMARY KEY,
+      provider TEXT,
+      model TEXT,
+      response TEXT NOT NULL,
+      input_tokens INTEGER NOT NULL DEFAULT 0,
+      output_tokens INTEGER NOT NULL DEFAULT 0,
+      cost_usd REAL NOT NULL DEFAULT 0,
+      hits INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL,
+      last_hit_at TEXT
+    );
+
+    -- F7: Connectors marketplace (installed instances)
+    CREATE TABLE IF NOT EXISTS connectors_installed (
+      id TEXT PRIMARY KEY,
+      connector_id TEXT NOT NULL,
+      label TEXT,
+      config_json TEXT,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      installed_at TEXT NOT NULL
+    );
+
+    -- F8: Voice transcripts
+    CREATE TABLE IF NOT EXISTS voice_intents (
+      id TEXT PRIMARY KEY,
+      transcript TEXT NOT NULL,
+      intent TEXT,
+      skill_id TEXT,
+      run_id TEXT,
+      created_at TEXT NOT NULL
+    );
+
+    -- F9: Compliance pack — subject erasure log + snapshots
+    CREATE TABLE IF NOT EXISTS compliance_events (
+      id TEXT PRIMARY KEY,
+      kind TEXT NOT NULL,
+      subject TEXT,
+      affected_rows INTEGER,
+      detail TEXT,
+      created_at TEXT NOT NULL
+    );
+
+    -- F10: Self-improving loop — run grades + distilled skill patches
+    CREATE TABLE IF NOT EXISTS run_grades (
+      id TEXT PRIMARY KEY,
+      run_id TEXT NOT NULL,
+      skill_id TEXT,
+      score REAL NOT NULL,
+      rubric_json TEXT,
+      notes TEXT,
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_run_grades_skill ON run_grades(skill_id, score);
+
+    CREATE TABLE IF NOT EXISTS skill_patches (
+      id TEXT PRIMARY KEY,
+      skill_id TEXT NOT NULL,
+      version INTEGER NOT NULL,
+      patch_prompt TEXT NOT NULL,
+      based_on_run_ids TEXT,
+      created_at TEXT NOT NULL,
+      adopted INTEGER NOT NULL DEFAULT 0
+    );
   `);
 
   const integrationCount = database.exec("SELECT COUNT(*) AS count FROM integrations")[0]?.values[0]?.[0] as number | undefined;
@@ -241,7 +574,70 @@ async function initializeDb(database: Database) {
     );
   }
 
+  // Apply pending column migrations. CREATE TABLE IF NOT EXISTS does not add
+  // columns to a pre-existing table, so anything beyond the initial schema
+  // ships through here.
+  await runMigrations(database);
+
   await saveDb();
+}
+
+// ─── Schema migrations ──────────────────────────────────────────────────────
+// Each migration is { version, up(db) }. We store the current version in
+// `schema_version` and run anything newer in order. Migrations must be
+// idempotent (CHECK column existence before ALTER) so a partial-apply doesn't
+// brick the DB.
+interface Migration {
+  version: number;
+  description: string;
+  up: (db: Database) => void;
+}
+
+function columnExists(db: Database, table: string, column: string): boolean {
+  const result = db.exec(`PRAGMA table_info(${table})`);
+  const cols = result[0]?.values.map((row) => String(row[1])) ?? [];
+  return cols.includes(column);
+}
+
+const MIGRATIONS: Migration[] = [
+  {
+    version: 1,
+    description: "runs.error_detail (stack + provider body)",
+    up(db) {
+      if (!columnExists(db, "runs", "error_detail")) {
+        db.run("ALTER TABLE runs ADD COLUMN error_detail TEXT");
+      }
+    },
+  },
+  {
+    version: 2,
+    description: "approvals.expires_at + auto-timeout sweeper",
+    up(db) {
+      if (!columnExists(db, "approvals", "expires_at")) {
+        db.run("ALTER TABLE approvals ADD COLUMN expires_at TEXT");
+      }
+    },
+  },
+];
+
+async function runMigrations(database: Database): Promise<void> {
+  database.run(`
+    CREATE TABLE IF NOT EXISTS schema_version (
+      version INTEGER PRIMARY KEY,
+      applied_at TEXT NOT NULL,
+      description TEXT NOT NULL
+    );
+  `);
+  const result = database.exec("SELECT COALESCE(MAX(version), 0) AS v FROM schema_version");
+  const current = Number(result[0]?.values[0]?.[0] ?? 0);
+  const pending = MIGRATIONS.filter((m) => m.version > current).sort((a, b) => a.version - b.version);
+  for (const migration of pending) {
+    migration.up(database);
+    database.run(
+      "INSERT INTO schema_version (version, applied_at, description) VALUES (?, ?, ?)",
+      [migration.version, new Date().toISOString(), migration.description],
+    );
+  }
 }
 
 export function rows<T>(result: { columns: string[]; values: unknown[][] }[]): T[] {

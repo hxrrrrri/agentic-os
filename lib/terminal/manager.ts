@@ -34,7 +34,13 @@ interface LiveSession {
   exitSubs: Set<(code: number) => void>;
 }
 
-const sessions = new Map<string, LiveSession>();
+type TerminalGlobal = typeof globalThis & {
+  __agenticosTerminalSessions?: Map<string, LiveSession>;
+};
+
+const terminalGlobal = globalThis as TerminalGlobal;
+const sessions = terminalGlobal.__agenticosTerminalSessions ?? new Map<string, LiveSession>();
+terminalGlobal.__agenticosTerminalSessions = sessions;
 
 function pushChunk(session: LiveSession, raw: string): void {
   if (!raw) return;
@@ -139,6 +145,12 @@ export async function createSession(cliId: string): Promise<SessionInfo> {
   const adapter = getAdapter(cliId);
   if (!adapter) throw new Error(`Unknown CLI adapter: ${cliId}`);
 
+  for (const session of Array.from(sessions.values())) {
+    if (session.cliId === adapter.id || session.cliId === cliId) {
+      killSession(session.id);
+    }
+  }
+
   const available = await isCommandAvailable(adapter);
   if (!available) {
     const envName = adapter.envVar ?? `${adapter.id.toUpperCase().replaceAll("-", "_")}_CLI_PATH`;
@@ -211,15 +223,24 @@ export function killSession(sessionId: string): void {
   sessions.delete(sessionId);
 }
 
+export function killAllSessions(): void {
+  for (const id of Array.from(sessions.keys())) {
+    killSession(id);
+  }
+}
+
 export function subscribeSession(
   sessionId: string,
   onChunk: (chunk: string) => void,
   onExit: (code: number) => void,
+  options: { replayHistory?: boolean } = {},
 ): () => void {
   const session = sessions.get(sessionId);
   if (!session) throw new Error("Session not found");
 
-  for (const chunk of session.history) onChunk(chunk);
+  if (options.replayHistory ?? true) {
+    for (const chunk of session.history) onChunk(chunk);
+  }
 
   session.outputSubs.add(onChunk);
   session.exitSubs.add(onExit);
@@ -228,4 +249,8 @@ export function subscribeSession(
     session.outputSubs.delete(onChunk);
     session.exitSubs.delete(onExit);
   };
+}
+
+export function getSessionHistory(sessionId: string): string[] {
+  return sessions.get(sessionId)?.history ?? [];
 }

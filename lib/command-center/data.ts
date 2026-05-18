@@ -60,6 +60,14 @@ export interface WeeklyReviewData {
   live: boolean;
 }
 
+export interface ActivityFeedItem {
+  id: string;
+  skill: string;
+  status: "ok" | "working" | "issue";
+  summary: string;
+  age: string;
+}
+
 export interface CommandCenterData {
   tokenBurn: TokenBurnData;
   socialTiles: SocialTileData[];
@@ -69,6 +77,7 @@ export interface CommandCenterData {
   repos: RepoItem[];
   hnItems: HnItem[];
   weeklyReview: WeeklyReviewData;
+  activity: ActivityFeedItem[];
 }
 
 const defaultSchedule: ScheduleSlot[] = [
@@ -299,6 +308,46 @@ function deriveWeeklyReview(
   return { dateRange: `${startDate} → ${endDate}`, windowDays: WINDOW_DAYS, baseline, videos: byViews.slice(0, 3), tally, bullets, live: true };
 }
 
+function relativeAge(iso: string): string {
+  const diffMs = Math.max(0, Date.now() - new Date(iso).getTime());
+  const mins = Math.floor(diffMs / 60_000);
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  return `${days}d ago`;
+}
+
+function deriveActivityFeed(runs: Awaited<ReturnType<typeof listRuns>>): ActivityFeedItem[] {
+  return [...runs]
+    .sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime())
+    .slice(0, 8)
+    .map((run) => {
+      const skill = (run.selectedSkill ?? run.title).replaceAll("-", " ").toUpperCase();
+      const status: ActivityFeedItem["status"] =
+        run.status === "failed" || run.status === "cancelled"
+          ? "issue"
+          : run.status === "completed"
+            ? "ok"
+            : "working";
+      const summary =
+        run.status === "completed"
+          ? run.finalOutput?.slice(0, 88) || "Run completed."
+          : run.status === "failed"
+            ? run.errors[0] || "Run failed."
+            : run.status === "waiting_for_approval"
+              ? "Waiting for approval."
+              : `${run.status.replaceAll("_", " ")}...`;
+      return {
+        id: run.id,
+        skill,
+        status,
+        summary,
+        age: relativeAge(run.startedAt),
+      };
+    });
+}
+
 export async function getCommandCenterData(): Promise<CommandCenterData> {
   const [runs, routines, tasks, ytStats, ytLatest, ytRecent, igStats, ttStats, hn, gh] = await Promise.all([
     listRuns().catch(() => []),
@@ -310,7 +359,7 @@ export async function getCommandCenterData(): Promise<CommandCenterData> {
     fetchInstagramStats().catch(() => null),
     fetchTikTokStats().catch(() => null),
     fetchHnTop(5).catch(() => null),
-    fetchGhTrending(5).catch(() => null),
+    fetchGhTrending(20).catch(() => null),
   ]);
 
   return {
@@ -322,5 +371,6 @@ export async function getCommandCenterData(): Promise<CommandCenterData> {
     repos: gh ?? [],
     hnItems: hn ?? [],
     weeklyReview: deriveWeeklyReview(ytRecent),
+    activity: deriveActivityFeed(runs),
   };
 }

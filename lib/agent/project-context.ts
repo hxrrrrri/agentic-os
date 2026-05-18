@@ -125,12 +125,41 @@ export async function getProjectContextManifest(): Promise<ProjectContextFile[]>
   }));
 }
 
-export async function loadProjectModelContext() {
+// Per-category file globs. Files matching the request's category get full
+// priority; everything else still loads but only if there's budget left.
+const CATEGORY_HINT_PATTERNS: Record<string, RegExp[]> = {
+  memory: [/vault/i, /memory/i, /daily/i],
+  productivity: [/inbox/i, /gmail/i, /calendar/i, /drive/i, /agenda/i],
+  research: [/research/i, /firecrawl/i, /crawl/i, /source/i, /market/i],
+  content: [/youtube/i, /content/i, /script/i, /hook/i, /thumbnail/i, /short/i, /caption/i],
+  custom: [/cli/i, /shell/i, /webhook/i, /mcp/i, /api/i],
+  dev: [/repo/i, /github/i, /commit/i, /pr-?review/i, /diff/i, /test/i],
+  business: [/stripe/i, /shopify/i, /crm/i, /salesforce/i, /hubspot/i, /pipedrive/i, /finance/i, /billing/i],
+};
+
+function priorityForCategory(relativePath: string, category?: string): number {
+  if (!category) return 0;
+  const patterns = CATEGORY_HINT_PATTERNS[category] ?? [];
+  return patterns.some((p) => p.test(relativePath)) ? -10 : 0;
+}
+
+export async function loadProjectModelContext(options: { category?: string; prompt?: string } = {}) {
   const files = await loadContextFiles();
+
+  // Re-sort: project.md and root rules always go first; then files matching
+  // the prompt's category bubble up; everything else stays in default order.
+  const promptCategory = options.category;
+  const sorted = [...files].sort((a, b) => {
+    const aPriority = priorityForCategory(a.path, promptCategory);
+    const bPriority = priorityForCategory(b.path, promptCategory);
+    if (aPriority !== bPriority) return aPriority - bPriority;
+    return 0; // preserve existing priority order (categoryPriority list above)
+  });
+
   let totalChars = 0;
   const included: string[] = [];
 
-  for (const file of files) {
+  for (const file of sorted) {
     const section = [`### ${file.path}`, file.content].join("\n\n");
 
     if (totalChars + section.length > MAX_TOTAL_CHARS) {
@@ -145,8 +174,12 @@ export async function loadProjectModelContext() {
     return "";
   }
 
+  const header = promptCategory
+    ? `## AgenticOS Portable Project Context (routed for category: ${promptCategory})`
+    : "## AgenticOS Portable Project Context";
+
   return [
-    "## AgenticOS Portable Project Context",
+    header,
     "The following markdown files define project-level behavior that should apply across all LLM providers.",
     ...included,
   ].join("\n\n");

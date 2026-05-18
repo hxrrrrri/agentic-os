@@ -9,6 +9,7 @@ export type SkillCategory =
 
 export type RiskLevel = "low" | "medium" | "high" | "critical";
 export type ExecutionMode = "dry-run" | "approval" | "auto";
+export type CostTier = "cheap" | "default" | "premium";
 
 export interface Skill {
   id: string;
@@ -21,4 +22,6 @@ export interface Skill {
   outputLocation: string;
   enabled: boolean;
   executionMode: ExecutionMode;
+  /** Cost governor hint: cheap routes to mini/local, premium to flagship. Optional; default honors active profile. */
+  costTier?: CostTier;
 }

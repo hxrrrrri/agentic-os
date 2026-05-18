@@ -17,6 +17,7 @@ dist/
 *.sqlite
 *.sqlite-shm
 *.sqlite-wal
+secrets.enc
 
 # environment
 .env
@@ -41,4 +42,15 @@ Thumbs.db
 .claude/*.local.json
 .codex/settings.local.json
 .codex/*.local.json
+.mcp.json
 .mcp.local.json
+
+# runtime browser profiles (Playwright / Firecrawl interactive sessions)
+.tmp-*-profile/
+.tmp-*-profile-*/
+
+# scratch screenshots / quick captures
+tmp-*.png
+
+# test runner artifacts
+tests/.last-results.json

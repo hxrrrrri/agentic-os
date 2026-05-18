@@ -25,7 +25,7 @@ const CrawlSchema = z.object({
 const RequestSchema = z.discriminatedUnion("mode", [ScrapeSchema, CrawlSchema]);
 
 export async function POST(request: Request) {
-  if (!isFirecrawlConfigured()) {
+  if (!await isFirecrawlConfigured()) {
     return NextResponse.json(
       { ok: false, error: "FIRECRAWL_API_KEY not set" },
       { status: 503 },
@@ -100,7 +100,8 @@ export async function POST(request: Request) {
 
 export async function GET() {
   return NextResponse.json({
-    configured: isFirecrawlConfigured(),
+    configured: await isFirecrawlConfigured(),
+
     description: "POST { mode: 'scrape' | 'crawl', url, ... } to scrape a single page or crawl a domain. Results are written to the vault.",
   });
 }

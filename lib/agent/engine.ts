@@ -19,6 +19,12 @@ import {
 import { indexGeneratedArtifact } from "@/lib/memory/indexer";
 import { loadVaultContext, writeVaultMarkdown } from "@/lib/vault/service";
 import { pushNotification, isPushConfigured } from "@/lib/notify/push";
+import { emitRunEvent } from "@/lib/agent/event-bus";
+import { recordUsage, enforceBudget } from "@/lib/billing/meter";
+import { sendWebhookEvent } from "@/lib/notify/webhook";
+import { getCached, hashKey, putCached, recordCacheHit } from "@/lib/billing/cache";
+import { defaultTierForSkillCategory, routeForSkill } from "@/lib/billing/router";
+import { enqueueJob } from "@/lib/jobs/queue";
 
 export interface RunRequest {
   prompt: string;
@@ -179,6 +185,8 @@ interface GenerateOutcome {
   inputTokens: number;
   outputTokens: number;
   cost: number;
+  providerId?: string;
+  model?: string;
 }
 
 async function generateFinalOutput(
@@ -189,11 +197,52 @@ async function generateFinalOutput(
   useSwarm = false,
   vaultContext?: string,
   vaultFileCount?: number,
+  onOutputDelta?: (delta: string) => void,
 ): Promise<GenerateOutcome> {
-  const projectContext = await loadProjectModelContext();
+  const category = skill?.category ?? classifyPrompt(prompt);
+  const projectContext = await loadProjectModelContext({ category, prompt });
 
   if (!modelProfile) {
     return { output: fallbackSummary(skill, prompt, memoryCount), inputTokens: 0, outputTokens: 0, cost: 0 };
+  }
+
+  // Cost governor: only reroute skills that explicitly opt into a cost tier.
+  const tier = (skill?.costTier as ReturnType<typeof defaultTierForSkillCategory>) ?? defaultTierForSkillCategory(category);
+  const routed = routeForSkill(tier, modelProfile);
+  if (routed.providerId !== modelProfile.providerId || routed.model !== modelProfile.model) {
+    modelProfile = { ...modelProfile, providerId: routed.providerId, model: routed.model };
+  }
+
+  // Prompt cache check. Include thinking/effort/skill/vault-context in the
+  // key so that two runs with identical user prompt but different settings
+  // don't collide. When streaming, replay the cached body through the delta
+  // callback so the UI still gets progressive output.
+  const cacheExtras = JSON.stringify({
+    skill: skill?.id ?? null,
+    thinking: modelProfile.thinking ?? null,
+    effort: modelProfile.reasoningEffort ?? null,
+    useSwarm: useSwarm,
+    ctxFiles: vaultFileCount ?? 0,
+  });
+  const cacheKey = hashKey(modelProfile.providerId, modelProfile.model, prompt, cacheExtras);
+  const cached = await getCached(cacheKey);
+  if (cached) {
+    await recordCacheHit(cacheKey).catch(() => {});
+    if (onOutputDelta) {
+      // Replay in ~512-char chunks so the live-output stream renders progressively.
+      const chunkSize = 512;
+      for (let i = 0; i < cached.response.length; i += chunkSize) {
+        onOutputDelta(cached.response.slice(i, i + chunkSize));
+      }
+    }
+    return {
+      output: cached.response,
+      inputTokens: 0,
+      outputTokens: 0,
+      cost: 0,
+      providerId: modelProfile.providerId,
+      model: modelProfile.model,
+    };
   }
 
   const provider = getProvider(modelProfile.providerId);
@@ -204,6 +253,8 @@ async function generateFinalOutput(
       inputTokens: 0,
       outputTokens: 0,
       cost: 0,
+      providerId: modelProfile.providerId,
+      model: modelProfile.model,
     };
   }
 
@@ -225,6 +276,8 @@ async function generateFinalOutput(
         inputTokens: result.totalInputTokens,
         outputTokens: result.totalOutputTokens,
         cost: computeCost(modelProfile.model, result.totalInputTokens, result.totalOutputTokens),
+        providerId: modelProfile.providerId,
+        model: modelProfile.model,
       };
     } catch (error) {
       const message = error instanceof Error ? error.message : "Swarm failed";
@@ -233,11 +286,28 @@ async function generateFinalOutput(
         inputTokens: 0,
         outputTokens: 0,
         cost: 0,
+        providerId: modelProfile.providerId,
+        model: modelProfile.model,
       };
     }
   }
 
   try {
+    const outputPrefix = [
+      `# ${skill?.name ?? "Agentic Workflow"}`,
+      "",
+      `> **Model:** ${provider.id} / ${modelProfile.model}${skill ? ` Â· **Skill:** ${skill.name} (${skill.category})` : ""}`,
+      "",
+    ].join("\n");
+    const safeOutputPrefix = [
+      `# ${skill?.name ?? "Agentic Workflow"}`,
+      "",
+      `> **Model:** ${provider.id} / ${modelProfile.model}${skill ? ` - **Skill:** ${skill.name} (${skill.category})` : ""}`,
+      "",
+    ].join("\n");
+    void outputPrefix;
+    onOutputDelta?.(safeOutputPrefix);
+
     const generated = await generateWithModel({
       provider,
       model: modelProfile.model,
@@ -249,6 +319,7 @@ async function generateFinalOutput(
       vaultFileCount,
       thinking: modelProfile.thinking,
       reasoningEffort: modelProfile.reasoningEffort,
+      onToken: onOutputDelta,
     });
 
     const body = [
@@ -259,11 +330,28 @@ async function generateFinalOutput(
       generated.content,
     ].join("\n");
 
-    return {
-      output: body,
+    const finalBody = `${safeOutputPrefix}${generated.content}`;
+    void body;
+
+    const cost = computeCost(modelProfile.model, generated.usage.inputTokens, generated.usage.outputTokens);
+    // Cache every successful response (streamed or not) — replay path above
+    // turns the next streaming hit into a near-instant render.
+    void putCached(cacheKey, {
+      provider: modelProfile.providerId,
+      model: modelProfile.model,
+      response: finalBody,
       inputTokens: generated.usage.inputTokens,
       outputTokens: generated.usage.outputTokens,
-      cost: computeCost(modelProfile.model, generated.usage.inputTokens, generated.usage.outputTokens),
+      costUsd: cost,
+    }).catch(() => {});
+
+    return {
+      output: finalBody,
+      inputTokens: generated.usage.inputTokens,
+      outputTokens: generated.usage.outputTokens,
+      cost,
+      providerId: modelProfile.providerId,
+      model: modelProfile.model,
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Model call failed";
@@ -272,6 +360,8 @@ async function generateFinalOutput(
       inputTokens: 0,
       outputTokens: 0,
       cost: 0,
+      providerId: modelProfile.providerId,
+      model: modelProfile.model,
     };
   }
 }
@@ -305,6 +395,7 @@ async function buildAndPersistRun(request: RunRequest): Promise<{ run: Run; plan
 
   await insertRun(run, plan);
   await addAuditLog({ actor: "agent", action: "created run", integration: "agenticos", riskLevel: "low", result: "completed" });
+  emitRunEvent({ runId: run.id, type: "run.started", payload: { title: run.title, category: run.category, plan } });
   return { run, plan };
 }
 
@@ -326,12 +417,21 @@ async function executeWorkflow(run: Run, plan: AgentPlan, request: RunRequest): 
     await runWorkflowSteps(run, plan, request);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Workflow failed";
+    const detail = error instanceof Error && error.stack ? error.stack : String(error);
     run.status = "failed";
     run.endedAt = nowIso();
     run.durationMs = +new Date(run.endedAt) - +new Date(run.startedAt);
     run.errors = [message];
+    run.errorDetail = detail.slice(0, 8000);
     run.finalOutput = `# Error\n\n${message}`;
     await updateRun(run, plan).catch(() => {});
+    emitRunEvent({ runId: run.id, type: "run.failed", payload: { error: message } });
+    void sendWebhookEvent({
+      title: `Run failed: ${run.title}`,
+      message,
+      level: "error",
+      runId: run.id,
+    });
   }
 }
 
@@ -339,6 +439,18 @@ async function runWorkflowSteps(run: Run, plan: AgentPlan, request: RunRequest):
   const prompt = run.prompt;
   const skill = getSkill(request.skillId);
   const useSwarm = request.useSwarm ?? skill?.id === "swarm-cascade";
+
+  const budgetCheck = await enforceBudget();
+  if (!budgetCheck.allowed) {
+    run.status = "failed";
+    run.errors = [`Budget exceeded: ${budgetCheck.reason}`];
+    run.finalOutput = `# Budget exceeded\n\n${budgetCheck.reason}`;
+    run.endedAt = nowIso();
+    run.durationMs = 0;
+    await updateRun(run, plan);
+    emitRunEvent({ runId: run.id, type: "run.failed", payload: { reason: budgetCheck.reason } });
+    return;
+  }
 
   const memoryItems = await listMemoryItems(25);
   const isMemorySkill = skill?.category === "memory" || skill?.category === "productivity";
@@ -370,9 +482,18 @@ async function runWorkflowSteps(run: Run, plan: AgentPlan, request: RunRequest):
       planStep.riskLevel,
     );
 
+    emitRunEvent({
+      runId: run.id,
+      type: "run.step",
+      payload: { stepIndex: index + 1, title: step.title, status: step.status },
+    });
+
     if (planStep.requiresApproval && !request.dryRun) {
       call.status = "blocked";
       call.output = "Blocked pending explicit approval.";
+      // 24h default expiry for any approval — recovery sweep flips stale rows
+      // to `expired` so the inbox doesn't grow unbounded.
+      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
       const approval: ApprovalRequest = {
         id: createId("approval"),
         runId: run.id,
@@ -384,10 +505,16 @@ async function runWorkflowSteps(run: Run, plan: AgentPlan, request: RunRequest):
         explanation: "This action can mutate external systems or local files beyond routine artifact writing.",
         status: "pending",
         createdAt: nowIso(),
+        expiresAt,
       };
       await insertApproval(approval);
       run.approvals.push(approval.id);
       run.status = "waiting_for_approval";
+      emitRunEvent({
+        runId: run.id,
+        type: "run.approval",
+        payload: { approvalId: approval.id, action: approval.action, risk: approval.riskLevel },
+      });
       if (isPushConfigured()) {
         void pushNotification({
           title: `Approval needed: ${approval.action}`,
@@ -397,6 +524,12 @@ async function runWorkflowSteps(run: Run, plan: AgentPlan, request: RunRequest):
           click: `${process.env.AGENTICOS_PUBLIC_URL ?? "http://localhost:3000"}/approvals`,
         });
       }
+      void sendWebhookEvent({
+        title: `Approval needed: ${approval.action}`,
+        message: `Risk ${approval.riskLevel} · ${approval.integration} · ${approval.affectedResource}`,
+        level: "warn",
+        runId: run.id,
+      });
     } else {
       call.status = "executed";
       call.output = `Mock observation for ${planStep.title}.`;
@@ -404,12 +537,43 @@ async function runWorkflowSteps(run: Run, plan: AgentPlan, request: RunRequest):
 
     await insertToolCall(call);
     run.toolCalls.push(call);
+    emitRunEvent({
+      runId: run.id,
+      type: "run.tool",
+      payload: { tool: call.tool, action: call.action, status: call.status, risk: call.riskLevel },
+    });
     step.status = "completed";
     step.endedAt = nowIso();
     step.observation = call.output;
     run.steps.push(step);
     await insertRunStep(step);
+    emitRunEvent({
+      runId: run.id,
+      type: "run.step",
+      payload: { stepIndex: index + 1, title: step.title, status: step.status },
+    });
   }
+
+  let queuedOutput = "";
+  let outputFlushTimer: ReturnType<typeof setTimeout> | null = null;
+  const flushOutput = () => {
+    if (outputFlushTimer) {
+      clearTimeout(outputFlushTimer);
+      outputFlushTimer = null;
+    }
+    if (!queuedOutput) return;
+    emitRunEvent({ runId: run.id, type: "run.output", payload: { delta: queuedOutput } });
+    queuedOutput = "";
+  };
+  const queueOutputDelta = (delta: string) => {
+    if (!delta) return;
+    queuedOutput += delta;
+    if (queuedOutput.length >= 512) {
+      flushOutput();
+      return;
+    }
+    if (!outputFlushTimer) outputFlushTimer = setTimeout(flushOutput, 120);
+  };
 
   const outcome = await generateFinalOutput(
     skill,
@@ -419,7 +583,9 @@ async function runWorkflowSteps(run: Run, plan: AgentPlan, request: RunRequest):
     useSwarm,
     vaultSnapshot?.rendered,
     vaultSnapshot?.entries.length ?? 0,
+    queueOutputDelta,
   );
+  flushOutput();
   const outputFolder = skill?.outputLocation ?? "/vault/runs";
   const artifact = await writeVaultMarkdown(outputFolder, run.title, outcome.output, {
     frontmatter: {
@@ -429,7 +595,8 @@ async function runWorkflowSteps(run: Run, plan: AgentPlan, request: RunRequest):
       source: "AgenticOS",
       runId: run.id,
       cost: outcome.cost,
-      model: request.modelProfile?.model,
+      provider: outcome.providerId ?? request.modelProfile?.providerId,
+      model: outcome.model ?? request.modelProfile?.model,
     },
     relatedLinks: memoryItems.slice(0, 5).map((m) => m.title),
   });
@@ -443,7 +610,44 @@ async function runWorkflowSteps(run: Run, plan: AgentPlan, request: RunRequest):
   if (run.status !== "waiting_for_approval") run.status = "completed";
   run.endedAt = nowIso();
   run.durationMs = +new Date(run.endedAt) - +new Date(run.startedAt);
-  await updateRun(run, plan);
+  try {
+    await updateRun(run, plan);
+  } catch (error) {
+    // DB write failed — best-effort retry with status=failed so the SSE stream
+    // can close out instead of polling forever.
+    run.status = "failed";
+    run.errors = [...run.errors, error instanceof Error ? error.message : "updateRun failed"];
+    await updateRun(run, plan).catch(() => {});
+  }
+  await recordUsage({
+    runId: run.id,
+    skillId: skill?.id,
+    provider: outcome.providerId ?? request.modelProfile?.providerId,
+    model: outcome.model ?? request.modelProfile?.model,
+    inputTokens: outcome.inputTokens,
+    outputTokens: outcome.outputTokens,
+    costUsd: outcome.cost,
+  });
+  // F10: queue auto-grading for completed runs that produced model output.
+  if (run.status === "completed" && outcome.outputTokens > 0) {
+    void enqueueJob("run.grade", { runId: run.id, skillId: skill?.id }, { runAfter: new Date(Date.now() + 5_000) }).catch(() => {});
+  }
+  emitRunEvent({
+    runId: run.id,
+    type: "run.artifact",
+    payload: { path: artifact, cost: outcome.cost },
+  });
+  emitRunEvent({
+    runId: run.id,
+    type: run.status === "completed" ? "run.completed" : "run.status",
+    payload: { status: run.status, cost: outcome.cost, tokens: run.tokensEstimate },
+  });
+  void sendWebhookEvent({
+    title: `Run ${run.status}: ${run.title}`,
+    message: `Tokens ${run.tokensEstimate}, cost $${outcome.cost.toFixed(4)}, artifact ${artifact}`,
+    level: run.status === "completed" ? "info" : "warn",
+    runId: run.id,
+  });
   await addAuditLog({
     actor: "agent",
     action: `completed workflow${useSwarm ? " (swarm)" : ""} — cost ${outcome.cost.toFixed(4)}`,

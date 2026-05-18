@@ -1,5 +1,7 @@
 # AgenticOS — High-Value Roadmap
 
+**Update R4 (2026-05-17):** Phase 0 (auth, secrets, batched writes, durable job runner) plus most of Phase 1 (GitHub, Stripe, Gmail, YouTube Analytics, Shopify, HubSpot, Pipedrive, Instagram media, TikTok videos, Firecrawl), most of Phase 2 (vector memory, productionized swarm, run theater, skill marketplace, billing meter, browser-use via Firecrawl `/interact`, Whisper audio), and most of Phase 3 (onboarding wizard, theme picker, Slack/Discord webhooks, Slack slash command, responsive shell) are now landed. The list below stays for the items still genuinely unimplemented.
+
 Where to go next. Each item rated by value × effort. Ordered by recommended sequence.
 
 ---

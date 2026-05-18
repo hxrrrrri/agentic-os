@@ -1,5 +1,12 @@
 import type { ModelEndpoint, ModelProvider } from "@/types";
 
+// CLI model lists below are derived from real CLI output:
+//   - claude-code:  `claude --model <invalid>` error + aliases (opus/sonnet/haiku)
+//   - codex:        `codex exec --model <invalid>` error + `~/.codex/config.toml`
+//   - copilot-cli:  `copilot help config` model section (authoritative)
+//   - gemini-cli:   official model catalog
+// `dynamicModels: true` lets `/api/model-providers/[id]/models` refresh at runtime.
+
 export const modelEndpoints: ModelEndpoint[] = [
   {
     id: "claude-code",
@@ -7,10 +14,13 @@ export const modelEndpoints: ModelEndpoint[] = [
     model: "claude-opus-4-7",
     models: [
       "claude-opus-4-7",
-      "claude-sonnet-4-6",
-      "claude-haiku-4-5",
-      "claude-sonnet-4-5",
       "claude-opus-4-1",
+      "claude-sonnet-4-6",
+      "claude-sonnet-4-5",
+      "claude-haiku-4-5",
+      "opus",
+      "sonnet",
+      "haiku",
     ],
     mode: "cli",
     enabled: true,
@@ -22,9 +32,13 @@ export const modelEndpoints: ModelEndpoint[] = [
     model: "gpt-5.5",
     models: [
       "gpt-5.5",
+      "gpt-5.5-codex",
       "gpt-5.5-mini",
-      "gpt-5.5-thinking",
+      "gpt-5.4",
+      "gpt-5.4-mini",
+      "gpt-5.3-codex",
       "gpt-5.2",
+      "gpt-5.2-codex",
       "gpt-5.2-mini",
       "gpt-4.1",
       "o4-mini",
@@ -37,7 +51,7 @@ export const modelEndpoints: ModelEndpoint[] = [
   {
     id: "copilot-cli",
     provider: "copilot-cli",
-    model: "gpt-5.5",
+    model: "claude-sonnet-4.6",
     models: [
       "claude-sonnet-4.6",
       "claude-sonnet-4.5",
@@ -46,13 +60,11 @@ export const modelEndpoints: ModelEndpoint[] = [
       "claude-opus-4.6",
       "claude-opus-4.6-fast",
       "claude-opus-4.5",
-      "claude-sonnet-4",
       "gpt-5.5",
       "gpt-5.4",
       "gpt-5.3-codex",
       "gpt-5.2-codex",
       "gpt-5.2",
-      "gpt-5.1",
       "gpt-5.4-mini",
       "gpt-5-mini",
       "gpt-4.1",
@@ -93,11 +105,18 @@ export const modelEndpoints: ModelEndpoint[] = [
   {
     id: "anthropic",
     provider: "anthropic",
-    model: "claude-sonnet-4-5",
-    models: ["claude-sonnet-4-5", "claude-opus-4-1", "claude-haiku-4-5"],
+    model: "claude-opus-4-7",
+    models: [
+      "claude-opus-4-7",
+      "claude-sonnet-4-6",
+      "claude-haiku-4-5-20251001",
+      "claude-sonnet-4-5",
+      "claude-opus-4-1",
+    ],
     mode: "cloud",
     enabled: false,
     requiresApiKey: true,
+    dynamicModels: true,
   },
   {
     id: "openai",
@@ -120,12 +139,42 @@ export const modelEndpoints: ModelEndpoint[] = [
     requiresApiKey: true,
     dynamicModels: true,
   },
-  { id: "openrouter", provider: "openrouter", model: "auto", models: ["auto"], mode: "cloud", enabled: false, requiresApiKey: true },
+  {
+    id: "openrouter",
+    provider: "openrouter",
+    model: "auto",
+    // Curated short-list — full catalog is fetched dynamically. `auto` lets
+    // OpenRouter pick the best model for the prompt.
+    models: [
+      "auto",
+      "anthropic/claude-opus-4-7",
+      "anthropic/claude-sonnet-4-6",
+      "anthropic/claude-haiku-4-5",
+      "openai/gpt-5.5",
+      "openai/gpt-5.5-mini",
+      "openai/o4-mini",
+      "google/gemini-2.5-pro",
+      "google/gemini-2.5-flash",
+      "meta-llama/llama-3.3-70b-instruct",
+      "deepseek/deepseek-v3",
+      "qwen/qwen-2.5-coder-32b",
+    ],
+    mode: "cloud",
+    enabled: false,
+    requiresApiKey: true,
+    dynamicModels: true,
+  },
   {
     id: "gemini-cli",
     provider: "gemini-cli",
     model: "gemini-2.5-pro",
-    models: ["gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.5-flash-lite"],
+    models: [
+      "gemini-3-pro-preview",
+      "gemini-2.5-pro",
+      "gemini-2.5-flash",
+      "gemini-2.5-flash-lite",
+      "gemini-2.0-flash",
+    ],
     mode: "cli",
     enabled: true,
     dynamicModels: true,
@@ -134,12 +183,18 @@ export const modelEndpoints: ModelEndpoint[] = [
     id: "gemini",
     provider: "gemini",
     model: "gemini-2.5-pro",
-    models: ["gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.5-flash-lite"],
+    models: [
+      "gemini-3-pro-preview",
+      "gemini-2.5-pro",
+      "gemini-2.5-flash",
+      "gemini-2.5-flash-lite",
+      "gemini-2.0-flash",
+    ],
     mode: "cloud",
     enabled: false,
     requiresApiKey: true,
   },
-  { id: "grok", provider: "grok", model: "grok-4", models: ["grok-4", "grok-3"], mode: "cloud", enabled: false, requiresApiKey: true },
+  { id: "grok", provider: "grok", model: "grok-4", models: ["grok-4", "grok-4-fast", "grok-3", "grok-3-mini"], mode: "cloud", enabled: false, requiresApiKey: true },
   { id: "custom", provider: "custom", model: "custom-endpoint", mode: "cloud", enabled: false },
 ];
 

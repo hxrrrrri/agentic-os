@@ -233,9 +233,13 @@ export interface ObsidianFrontmatter {
   skill?: string;
   source?: string;
   runId?: string;
+  traceId?: string;
   cost?: number;
+  provider?: string;
   model?: string;
   aliases?: string[];
+  basedOn?: string[];
+  version?: number;
 }
 
 function renderFrontmatter(fm: ObsidianFrontmatter): string {

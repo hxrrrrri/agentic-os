@@ -1,5 +1,6 @@
 import { spawn, ChildProcess } from "node:child_process";
 import { detectRisk } from "@/lib/permissions/policy";
+import { redact } from "@/lib/secrets/redact";
 import type { RiskLevel } from "@/types";
 
 export interface McpServerConfig {
@@ -121,7 +122,8 @@ export async function callMcpTool(
 ): Promise<unknown> {
   const session = sessions.get(serverId);
   if (!session) throw new Error(`MCP server not connected: ${serverId}`);
-  return send(session, "tools/call", { name: toolName, arguments: args });
+  const raw = await send(session, "tools/call", { name: toolName, arguments: args });
+  return redact(raw);
 }
 
 export function disconnectMcp(serverId: string) {

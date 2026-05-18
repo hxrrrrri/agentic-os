@@ -26,31 +26,33 @@ export function WeeklyReview({ data }: Props) {
   const dateRange = data?.dateRange ?? "—";
   const live = data?.live ?? false;
   const max = Math.max(...videos.map((v) => v.views), 1);
+  const topPerformer = videos[0];
+  const underperformer = [...videos].sort((a, b) => a.views - b.views)[0];
 
   return (
-    <div className="rounded-[3px] border border-[#2a302c] bg-[#0b0d0a] p-3">
-      <div className="flex items-center justify-between">
+    <div className="cc-panel p-[16px_18px]">
+      <div className="relative z-[1] flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <span className="text-[0.6rem] font-bold uppercase tracking-[0.18em] text-[#e86f3a]">$ YT Week Review</span>
-          <span className="text-[0.56rem] uppercase tracking-[0.18em] text-[#6f6a61]">{dateRange}</span>
+          <span className="text-[0.72rem] font-bold uppercase tracking-[0.16em] text-[#e86f3a]">$ YT Week Review</span>
+          <span className="text-[0.72rem] uppercase tracking-[0.14em] text-[#8d877e]">{dateRange}</span>
           {live ? (
-            <span className="h-[5px] w-[5px] rounded-full bg-[#79a875] shadow-[0_0_5px_#79a875] animate-pulse" title="live data" />
+            <span className="cc-live-dot h-[5px] w-[5px] rounded-full bg-[#79a875] shadow-[0_0_5px_#79a875]" title="live data" />
           ) : (
             <span className="h-[5px] w-[5px] rounded-full bg-[#6f6a61]" title="mock / no API key" />
           )}
         </div>
         <Link
           href="/runs?skill=weekly-review"
-          className="inline-flex h-5 items-center rounded-[2px] border border-[#2a302c] bg-[#10120f] px-2 text-[0.52rem] font-bold uppercase tracking-[0.16em] text-[#a8a29a] transition hover:border-[#e86f3a] hover:text-[#e86f3a]"
+          className="inline-flex h-7 items-center rounded-[2px] border border-[#2a302c] bg-[#10120f] px-3 text-[0.68rem] font-bold uppercase tracking-[0.12em] text-[#a8a29a] transition hover:border-[#e86f3a] hover:text-[#e86f3a]"
         >
           Full /
         </Link>
       </div>
 
       {bullets.length > 0 ? (
-        <ul className="mt-3 space-y-[6px]">
+        <ul className="relative z-[1] mt-3 space-y-[5px]">
           {bullets.map((b, i) => (
-            <li key={i} className="grid grid-cols-[12px_1fr] gap-2 text-[0.7rem] leading-relaxed text-[#f4f1e8]">
+            <li key={i} className="grid grid-cols-[18px_1fr] gap-3 text-[0.88rem] leading-relaxed text-[#f4f1e8]">
               <span className="text-[#e86f3a]">·</span>
               <span dangerouslySetInnerHTML={{ __html: b.replaceAll(/\*\*(.+?)\*\*/g, '<strong class="text-[#f4f1e8] font-bold">$1</strong>') }} />
             </li>
@@ -58,7 +60,7 @@ export function WeeklyReview({ data }: Props) {
         </ul>
       ) : null}
 
-      <div className="mt-4 flex items-center gap-2 text-[0.54rem] uppercase tracking-[0.18em] text-[#6f6a61]">
+      <div className="relative z-[1] mt-4 flex flex-wrap items-center gap-2 text-[0.72rem] uppercase tracking-[0.14em] text-[#8d877e]">
         <span>Uploads · Views</span>
         {TALLY_ORDER.map((t) => (
           <span
@@ -73,16 +75,16 @@ export function WeeklyReview({ data }: Props) {
       </div>
 
       {videos.length > 0 ? (
-        <div className={`mt-3 grid gap-3`} style={{ gridTemplateColumns: `repeat(${videos.length}, 1fr)` }}>
+        <div className={`relative z-[1] mt-3 grid gap-3`} style={{ gridTemplateColumns: `repeat(${videos.length}, 1fr)` }}>
           {videos.map((v) => {
             const heightPct = Math.max(8, Math.round((v.views / max) * 100));
             const color = TONE_COLOR[v.tone];
             return (
               <div key={v.videoId || v.title} className="flex flex-col">
-                <div className="mb-1 text-[0.6rem] font-bold uppercase tracking-[0.16em] text-[#a8a29a]">
+                <div className="mb-2 text-[0.76rem] font-bold uppercase tracking-[0.12em] text-[#b8b2aa]">
                   {v.viewsDisplay}
                 </div>
-                <div className="relative h-32 overflow-hidden rounded-[2px] bg-[#10120f]">
+                <div className="relative h-24 overflow-hidden rounded-[1px] bg-[#10120f]">
                   <div
                     className="absolute bottom-0 w-full transition-[height] duration-700"
                     style={{
@@ -92,14 +94,33 @@ export function WeeklyReview({ data }: Props) {
                     }}
                   />
                 </div>
-                <div className="mt-2 truncate text-[0.6rem] text-[#8b857b]">{v.title}</div>
+                <div className="mt-2 truncate text-[0.78rem] text-[#8b857b]">{v.title}</div>
               </div>
             );
           })}
         </div>
       ) : (
-        <div className="mt-3 text-[0.66rem] text-[#6f6a61]">No uploads in this window.</div>
+        <div className="relative z-[1] mt-3 text-[0.88rem] text-[#8d877e]">No uploads in this window.</div>
       )}
+
+      {topPerformer && underperformer ? (
+        <div className="relative z-[1] mt-3 grid gap-3 md:grid-cols-2">
+          <div className="rounded-[2px] border border-[#79a875]/45 bg-[#0d1210] p-2">
+            <div className="text-[0.72rem] font-bold uppercase tracking-[0.14em] text-[#79a875]">▲ Top Performer</div>
+            <div className="mt-2 text-[0.88rem] text-[#f4f1e8]">{topPerformer.title}</div>
+            <div className="mt-2 text-[0.76rem] text-[#8b857b]">
+              {topPerformer.viewsDisplay} views · {topPerformer.pctOfBaseline}% of baseline.
+            </div>
+          </div>
+          <div className="rounded-[2px] border border-[#e86f3a]/40 bg-[#120d0d] p-2">
+            <div className="text-[0.72rem] font-bold uppercase tracking-[0.14em] text-[#e86f3a]">▼ Underperformer</div>
+            <div className="mt-2 text-[0.88rem] text-[#f4f1e8]">{underperformer.title}</div>
+            <div className="mt-2 text-[0.76rem] text-[#8b857b]">
+              {underperformer.viewsDisplay} views · {underperformer.pctOfBaseline}% of baseline.
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

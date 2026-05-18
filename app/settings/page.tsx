@@ -1,6 +1,9 @@
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ModelProviderProfiles } from "@/components/settings/model-provider-profiles";
+import { CredentialsManager } from "@/components/settings/credentials-manager";
+import { McpManager } from "@/components/settings/mcp-manager";
+import { ThemeSelector } from "@/components/layout/theme-toggle";
 import { agenticosConfig } from "@/agenticos.config";
 import { listModelProviders } from "@/lib/agent/providers";
 import { getProjectContextManifest } from "@/lib/agent/project-context";
@@ -69,8 +72,26 @@ export default async function SettingsPage() {
           </div>
         </Card>
         <Card>
+          <CardHeader><CardTitle>Theme</CardTitle></CardHeader>
+          <ThemeSelector />
+        </Card>
+        <Card className="xl:col-span-2">
           <CardHeader><CardTitle>Model Providers</CardTitle></CardHeader>
           <ModelProviderProfiles providers={providers} />
+        </Card>
+        <Card className="xl:col-span-2">
+          <CardHeader>
+            <CardTitle>Integrations &amp; Credentials</CardTitle>
+            <Badge tone="orange">encrypted</Badge>
+          </CardHeader>
+          <CredentialsManager />
+        </Card>
+        <Card className="xl:col-span-2">
+          <CardHeader>
+            <CardTitle>MCP Servers</CardTitle>
+            <Badge tone="green">one config → every CLI</Badge>
+          </CardHeader>
+          <McpManager />
         </Card>
         <Card>
           <CardHeader><CardTitle>Project Intelligence</CardTitle></CardHeader>

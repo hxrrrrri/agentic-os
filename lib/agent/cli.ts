@@ -3,12 +3,21 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import type { GenerateWithModelRequest, GenerateWithModelResult } from "@/lib/agent/llm";
-import { THINKING_KEYWORDS } from "@/lib/agent/llm";
+import { THINKING_BUDGETS, THINKING_KEYWORDS } from "@/lib/agent/llm";
 
 const DEFAULT_TIMEOUT_MS = 180_000;
 
 function resolveCommand(envVar: string, fallback: string): string {
   return process.env[envVar]?.trim() || fallback;
+}
+
+// Defense in depth: any string passed as a CLI argument (model id, effort
+// level, reasoning level) must be plain ASCII without shell metacharacters.
+// On Windows we spawn with shell:true so cmd.exe parses metacharacters.
+const SAFE_ARG = /^[A-Za-z0-9._:/-]+$/;
+function safeArg(value: string | undefined, fallback = ""): string {
+  if (!value) return fallback;
+  return SAFE_ARG.test(value) ? value : fallback;
 }
 
 interface RunCliOptions {
@@ -132,8 +141,9 @@ export async function generateWithClaudeCli(request: GenerateWithModelRequest): 
   const fullPrompt = `${prefix}${system}\n\n---\n\n${user}`;
 
   const args = ["-p", "--output-format", "json"];
-  if (request.model && request.model !== "Claude Code CLI") {
-    args.push("--model", request.model);
+  const safeModel = safeArg(request.model);
+  if (safeModel && safeModel !== "Claude Code CLI") {
+    args.push("--model", safeModel);
   }
 
   const result = await runCli({
@@ -209,11 +219,13 @@ export async function generateWithCodexCli(request: GenerateWithModelRequest): P
     "-o",
     outputFile,
   ];
-  if (request.model && request.model !== "Codex") {
-    args.push("--model", request.model);
+  const safeCodexModel = safeArg(request.model);
+  if (safeCodexModel && safeCodexModel !== "Codex") {
+    args.push("--model", safeCodexModel);
   }
-  if (request.reasoningEffort) {
-    args.push("-c", `model_reasoning_effort=${request.reasoningEffort}`);
+  const safeCodexEffort = safeArg(request.reasoningEffort);
+  if (safeCodexEffort) {
+    args.push("-c", `model_reasoning_effort=${safeCodexEffort}`);
   }
   args.push("-");
 
@@ -380,11 +392,13 @@ export async function generateWithCopilotCli(request: GenerateWithModelRequest):
     "--output-format", "text",
     "--available-tools=",
   ];
-  if (request.model && request.model !== "GitHub Copilot CLI") {
-    args.push("--model", request.model);
+  const safeCopilotModel = safeArg(request.model);
+  if (safeCopilotModel && safeCopilotModel !== "GitHub Copilot CLI") {
+    args.push("--model", safeCopilotModel);
   }
-  if (request.reasoningEffort) {
-    args.push("--effort", copilotEffort(request.reasoningEffort));
+  const safeCopilotEffort = safeArg(request.reasoningEffort);
+  if (safeCopilotEffort) {
+    args.push("--effort", copilotEffort(safeCopilotEffort));
   }
 
   try {
@@ -421,28 +435,31 @@ export async function generateWithGeminiCli(request: GenerateWithModelRequest): 
   // Strip projectContext — agent markdown files confuse Gemini into treating prompts as code tasks.
   // Run from a temp dir so Gemini doesn't auto-load the agentic-os project structure.
   //
-  // On Windows, piping stdin to gemini via Node's spawn(..., {shell:true}) HANGS — the child
-  // process never exits. Workaround: write prompt to a file and use shell redirection
-  // (`gemini ... < prompt.txt`) which cmd.exe handles correctly.
+  // We use `--prompt-interactive` … no — we use the headless `-p` mode and pipe
+  // stdin. Previously we used `< "file.txt"` shell redirection, which only
+  // worked when shell:true. Plain stdin pipe works on all platforms.
   const { system, user } = buildPromptText({ ...request, projectContext: undefined });
   const fullPrompt = `${system}\n\n---\n\n${user}`;
 
   const workDir = await mkdtemp(path.join(tmpdir(), "agenticos-gemini-"));
-  const promptFile = path.join(workDir, "prompt.txt");
-  await writeFile(promptFile, fullPrompt, "utf8");
 
+  const safeGeminiModel = safeArg(request.model, "gemini-2.5-pro");
   const args = [
     "--output-format", "stream-json",
     "--skip-trust",
     "--approval-mode", "auto_edit",
-    "--model", request.model || "gemini-2.5-pro",
-    "<", `"${promptFile}"`,
+    "--model", safeGeminiModel,
   ];
+  const geminiBudget = THINKING_BUDGETS[request.thinking ?? "off"];
+  if (geminiBudget > 0) {
+    args.push("-c", `thinking.budget=${geminiBudget}`);
+  }
 
   try {
     const result = await runCli({
       command,
       args,
+      stdin: fullPrompt,
       cwd: workDir,
       timeoutMs: DEFAULT_TIMEOUT_MS,
     });
