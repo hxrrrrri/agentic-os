@@ -49,23 +49,39 @@ const EFFORT_OPTIONS: { value: ReasoningEffort; label: string }[] = [
   { value: "xhigh", label: "XHigh" },
 ];
 
+const THINKING_PROVIDERS = new Set(["claude-code", "anthropic", "gemini-cli", "gemini", "ollama"]);
+const EFFORT_PROVIDERS = new Set(["codex", "copilot-cli", "openai", "grok", "nvidia", "openrouter"]);
+
 function supportsThinking(provider: ModelEndpoint): boolean {
-  return provider.id === "claude-code" || provider.id === "anthropic" || provider.provider === "claude-code" || provider.provider === "anthropic";
+  return THINKING_PROVIDERS.has(provider.id) || THINKING_PROVIDERS.has(provider.provider);
 }
 
 function supportsEffort(provider: ModelEndpoint): boolean {
-  return ["codex", "copilot-cli", "openai"].includes(provider.id) || ["codex", "copilot-cli", "openai"].includes(provider.provider);
+  return EFFORT_PROVIDERS.has(provider.id) || EFFORT_PROVIDERS.has(provider.provider);
+}
+
+function thinkingOptionsFor(provider: ModelEndpoint) {
+  const id = provider.id || provider.provider;
+  // Only Claude CLI accepts the keyword cascade (think / think hard / think harder / ultrathink).
+  // Anthropic API / Gemini / Ollama get a simpler off/on/deep mapping.
+  if (id === "claude-code") return THINKING_OPTIONS;
+  if (id === "anthropic") return THINKING_OPTIONS.filter((o) => o.value !== "ultrathink");
+  return THINKING_OPTIONS.filter((o) => o.value === "off" || o.value === "think" || o.value === "think-hard");
 }
 
 function effortOptionsFor(provider: ModelEndpoint) {
   const id = provider.id || provider.provider;
+  // Codex CLI: `low | medium | high | xhigh` (from `codex exec --help`).
+  // Copilot CLI: `low | medium | high | xhigh` (from `copilot --help` flag set).
   if (id === "copilot-cli" || id === "codex") {
     return EFFORT_OPTIONS.filter((option) => option.value !== "minimal");
   }
-  if (id === "openai") {
+  // OpenAI / Grok / NVIDIA expose `minimal | low | medium | high` on the
+  // reasoning models — xhigh is not part of their official enum.
+  if (id === "openai" || id === "grok" || id === "nvidia") {
     return EFFORT_OPTIONS.filter((option) => option.value !== "xhigh");
   }
-  return EFFORT_OPTIONS;
+  return EFFORT_OPTIONS.filter((option) => option.value !== "xhigh");
 }
 
 function getInitialModel(provider: ModelEndpoint, models: string[]) {
@@ -79,6 +95,15 @@ function uniqueModels(models: string[]) {
   return Array.from(new Set(models.map((model) => model.trim()).filter(Boolean)));
 }
 
+function parseRecord<T>(raw: string | null): Record<string, T> {
+  if (!raw) return {};
+  try {
+    return JSON.parse(raw) as Record<string, T>;
+  } catch {
+    return {};
+  }
+}
+
 export function ModelProviderProfiles({ providers }: { providers: ModelEndpoint[] }) {
   const defaultModels = useMemo(
     () =>
@@ -90,11 +115,9 @@ export function ModelProviderProfiles({ providers }: { providers: ModelEndpoint[
       ),
     [providers],
   );
-  // Start with empty string — the load effect below restores the real value from localStorage.
-  // Using useState(defaultProvider) caused save-effects to overwrite localStorage with "claude-code"
-  // before the load effect could restore the user's previous selection.
+  // Initial state must match SSR (no localStorage). The mount effect below hydrates from storage.
   const [activeProvider, setActiveProviderRaw] = useState<string>("");
-  const [selectedModels, setSelectedModelsRaw] = useState<Record<string, string>>(defaultModels);
+  const [selectedModels, setSelectedModelsRaw] = useState<Record<string, string>>(() => defaultModels);
   const [thinking, setThinkingRaw] = useState<Record<string, ThinkingLevel>>({});
   const [effort, setEffortRaw] = useState<Record<string, ReasoningEffort>>({});
   const [testState, setTestState] = useState<Record<string, ProviderTestState>>({});
@@ -107,7 +130,7 @@ export function ModelProviderProfiles({ providers }: { providers: ModelEndpoint[
     ),
   );
 
-  // Wrapper setters — these save to localStorage immediately when called by user actions.
+  // Wrapper setters save to localStorage immediately when called by user actions.
   // The raw setters (above) are used by the load effect so it doesn't trigger a save.
   const setActiveProvider = useCallback((id: string) => {
     setActiveProviderRaw(id);
@@ -138,35 +161,34 @@ export function ModelProviderProfiles({ providers }: { providers: ModelEndpoint[
     });
   }, []);
 
-  // Load from localStorage once on mount — uses raw setters so no save is triggered.
+  // Load from localStorage once on mount before dynamic model refreshes can persist defaults.
   const loadedRef = useRef(false);
   useEffect(() => {
     if (loadedRef.current) return;
     loadedRef.current = true;
-    const frame = window.requestAnimationFrame(() => {
-      const storedProvider = window.localStorage.getItem("agenticos.activeProvider");
-      const storedModels = window.localStorage.getItem("agenticos.providerModels");
-      const storedThinking = window.localStorage.getItem("agenticos.providerThinking");
-      const storedEffort = window.localStorage.getItem("agenticos.providerEffort");
+    const storedProvider = window.localStorage.getItem("agenticos.activeProvider");
+    const storedModels = window.localStorage.getItem("agenticos.providerModels");
+    const storedThinking = window.localStorage.getItem("agenticos.providerThinking");
+    const storedEffort = window.localStorage.getItem("agenticos.providerEffort");
 
-      // Fall back to first enabled provider if nothing is stored
-      const initial = storedProvider || providers.find((p) => p.enabled)?.id || providers[0]?.id || "";
+    const initial = storedProvider || providers.find((p) => p.enabled)?.id || providers[0]?.id || "";
+    if (!storedProvider && initial) window.localStorage.setItem("agenticos.activeProvider", initial);
+    if (!storedModels) {
+      window.localStorage.setItem("agenticos.providerModels", JSON.stringify(defaultModels));
+    }
+
+    // Defer state writes off the synchronous effect body so the React 19 lint
+    // rule and concurrent-rendering invariants are happy.
+    queueMicrotask(() => {
       setActiveProviderRaw(initial);
-      if (!storedProvider && initial) window.localStorage.setItem("agenticos.activeProvider", initial);
-
       if (storedModels) {
-        try { setSelectedModelsRaw({ ...defaultModels, ...(JSON.parse(storedModels) as Record<string, string>) }); } catch {}
+        setSelectedModelsRaw({ ...defaultModels, ...parseRecord<string>(storedModels) });
       } else {
-        window.localStorage.setItem("agenticos.providerModels", JSON.stringify(defaultModels));
+        setSelectedModelsRaw(defaultModels);
       }
-      if (storedThinking) {
-        try { setThinkingRaw(JSON.parse(storedThinking) as Record<string, ThinkingLevel>); } catch {}
-      }
-      if (storedEffort) {
-        try { setEffortRaw(JSON.parse(storedEffort) as Record<string, ReasoningEffort>); } catch {}
-      }
+      if (storedThinking) setThinkingRaw(parseRecord<ThinkingLevel>(storedThinking));
+      if (storedEffort) setEffortRaw(parseRecord<ReasoningEffort>(storedEffort));
     });
-    return () => window.cancelAnimationFrame(frame);
   }, [defaultModels, providers]);
 
   const testProvider = useCallback(async (provider: ModelEndpoint) => {
@@ -240,6 +262,14 @@ export function ModelProviderProfiles({ providers }: { providers: ModelEndpoint[
 
   return (
     <div className="space-y-2">
+      <div className="flex flex-wrap items-center gap-2 border border-[#2a302c] bg-[#080a09] p-3 text-xs">
+        <span className="text-[0.58rem] uppercase tracking-[0.14em] text-[#6f6a61]">Active profile</span>
+        <span className="text-[#f4f1e8]">
+          {activeProvider
+            ? `${providerLabel[activeProvider] ?? activeProvider} / ${selectedModels[activeProvider] ?? "model not selected"}`
+            : "No provider selected"}
+        </span>
+      </div>
       {providers.map((provider) => {
         const state = modelState[provider.id] ?? {
           models: uniqueModels(provider.models ?? [provider.model]),
@@ -250,7 +280,10 @@ export function ModelProviderProfiles({ providers }: { providers: ModelEndpoint[
         const isSelectable = state.models.length > 0;
         const showThinking = supportsThinking(provider);
         const showEffort = supportsEffort(provider);
-        const currentThinking = thinking[provider.id] ?? "off";
+        const thinkingOpts = thinkingOptionsFor(provider);
+        const currentThinking = thinkingOpts.some((option) => option.value === thinking[provider.id])
+          ? thinking[provider.id]
+          : "off";
         const effortOptions = effortOptionsFor(provider);
         const currentEffort = effortOptions.some((option) => option.value === effort[provider.id])
           ? effort[provider.id]
@@ -369,7 +402,7 @@ export function ModelProviderProfiles({ providers }: { providers: ModelEndpoint[
                       }
                       className="h-8 flex-1 rounded-[3px] border border-[#30342c] bg-[#111310] px-2 text-[0.65rem] text-[#f4f1e8] outline-none focus:border-[#e86f3a]"
                     >
-                      {THINKING_OPTIONS.map((opt) => (
+                      {thinkingOpts.map((opt) => (
                         <option key={opt.value} value={opt.value}>
                           {opt.label} · budget {opt.budget}
                         </option>

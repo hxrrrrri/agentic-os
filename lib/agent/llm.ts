@@ -13,6 +13,7 @@ export interface GenerateWithModelRequest {
   systemExtra?: string;
   thinking?: ThinkingLevel;
   reasoningEffort?: ReasoningEffort;
+  onToken?: (token: string) => void;
 }
 
 export const THINKING_BUDGETS: Record<ThinkingLevel, number> = {
@@ -100,6 +101,23 @@ async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs = 90_0
   }
 }
 
+// Retry on 429 / 503 honoring Retry-After. Capped at 3 attempts with exponential
+// backoff fallback (1s, 2s, 4s) when the header is missing.
+async function fetchWithRetry(url: string, init: RequestInit, timeoutMs = 90_000, maxAttempts = 3): Promise<Response> {
+  for (let attempt = 1; ; attempt += 1) {
+    const response = await fetchWithTimeout(url, init, timeoutMs);
+    if (response.status !== 429 && response.status !== 503) return response;
+    if (attempt >= maxAttempts) return response;
+    const retryAfter = response.headers.get("retry-after");
+    let waitMs = Math.min(8_000, 1000 * 2 ** (attempt - 1));
+    if (retryAfter) {
+      const secs = Number(retryAfter);
+      if (Number.isFinite(secs) && secs > 0) waitMs = Math.min(15_000, secs * 1000);
+    }
+    await new Promise((resolve) => setTimeout(resolve, waitMs));
+  }
+}
+
 function approxTokens(text: string) {
   return Math.max(1, Math.round(text.length / 4));
 }
@@ -107,17 +125,103 @@ function approxTokens(text: string) {
 async function generateWithOllama(request: GenerateWithModelRequest): Promise<GenerateWithModelResult> {
   const sys = systemPrompt(request.skill, request.projectContext, request.systemExtra);
   const usr = userPrompt(request.prompt, request.memoryCount, request.vaultContext, request.vaultFileCount);
+  const thinkingLevel = request.thinking ?? "off";
+  const useThinking = thinkingLevel !== "off";
+  const payload: Record<string, unknown> = {
+    model: request.model,
+    stream: Boolean(request.onToken),
+    messages: [
+      { role: "system", content: sys },
+      { role: "user", content: usr },
+    ],
+  };
+  if (useThinking) payload.think = true;
+
+  if (request.onToken) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 300_000);
+    try {
+      const response = await fetch(`${request.provider.baseUrl}/api/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+      });
+
+      if (!response.ok) throw new Error(`Ollama returned ${response.status}`);
+      if (!response.body) throw new Error("Ollama returned an empty stream");
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let content = "";
+      let promptTokens: number | undefined;
+      let outputTokens: number | undefined;
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split(/\r?\n/);
+        buffer = lines.pop() ?? "";
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed) continue;
+          const chunk = JSON.parse(trimmed) as {
+            message?: { content?: string };
+            response?: string;
+            done?: boolean;
+            prompt_eval_count?: number;
+            eval_count?: number;
+          };
+          const token = chunk.message?.content ?? chunk.response ?? "";
+          if (token) {
+            content += token;
+            request.onToken(token);
+          }
+          if (chunk.done) {
+            promptTokens = chunk.prompt_eval_count;
+            outputTokens = chunk.eval_count;
+          }
+        }
+      }
+
+      const trailing = buffer.trim();
+      if (trailing) {
+        const chunk = JSON.parse(trailing) as {
+          message?: { content?: string };
+          response?: string;
+          prompt_eval_count?: number;
+          eval_count?: number;
+        };
+        const token = chunk.message?.content ?? chunk.response ?? "";
+        if (token) {
+          content += token;
+          request.onToken(token);
+        }
+        promptTokens = chunk.prompt_eval_count ?? promptTokens;
+        outputTokens = chunk.eval_count ?? outputTokens;
+      }
+
+      const trimmed = content.trim();
+      if (!trimmed) throw new Error("Ollama returned an empty response");
+      return {
+        content: trimmed,
+        usage: {
+          inputTokens: promptTokens ?? approxTokens(sys + usr),
+          outputTokens: outputTokens ?? approxTokens(trimmed),
+        },
+      };
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
   const response = await fetchWithTimeout(`${request.provider.baseUrl}/api/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: request.model,
-      stream: false,
-      messages: [
-        { role: "system", content: sys },
-        { role: "user", content: usr },
-      ],
-    }),
+    body: JSON.stringify(payload),
   });
 
   if (!response.ok) throw new Error(`Ollama returned ${response.status}`);
@@ -148,7 +252,7 @@ async function generateWithNvidia(request: GenerateWithModelRequest): Promise<Ge
   const usr = userPrompt(request.prompt, request.memoryCount, request.vaultContext, request.vaultFileCount);
 
   async function callModel(model: string) {
-    const response = await fetchWithTimeout(`${request.provider.baseUrl}/chat/completions`, {
+    const response = await fetchWithRetry(`${request.provider.baseUrl}/chat/completions`, {
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -211,7 +315,7 @@ async function generateWithAnthropic(request: GenerateWithModelRequest): Promise
     payload.thinking = { type: "enabled", budget_tokens: thinkingBudget };
   }
 
-  const response = await fetchWithTimeout("https://api.anthropic.com/v1/messages", {
+  const response = await fetchWithRetry("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
       "x-api-key": apiKey,
@@ -243,7 +347,11 @@ async function generateWithAnthropic(request: GenerateWithModelRequest): Promise
 
 function isOpenAIReasoningModel(model: string): boolean {
   const m = model.toLowerCase();
-  return m.startsWith("o3") || m.startsWith("o4") || m.startsWith("o1") || m.startsWith("gpt-5") || m.includes("reasoning");
+  // OpenAI o-series is always reasoning. Anything else needs an explicit
+  // `-thinking` / `-reasoning` / `-codex` suffix — generic gpt-5.x are chat
+  // models and 400 on `reasoning_effort`.
+  if (/^o[134](?:[-]|$)/.test(m)) return true;
+  return /-thinking\b|-reasoning\b|-codex\b/.test(m);
 }
 
 async function generateWithOpenAI(request: GenerateWithModelRequest): Promise<GenerateWithModelResult> {
@@ -262,7 +370,7 @@ async function generateWithOpenAI(request: GenerateWithModelRequest): Promise<Ge
   if (request.reasoningEffort && request.reasoningEffort !== "xhigh" && isOpenAIReasoningModel(request.model)) {
     payload.reasoning_effort = request.reasoningEffort;
   }
-  const response = await fetchWithTimeout("https://api.openai.com/v1/chat/completions", {
+  const response = await fetchWithRetry("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -294,7 +402,7 @@ async function generateWithOpenRouter(request: GenerateWithModelRequest): Promis
 
   const sys = systemPrompt(request.skill, request.projectContext, request.systemExtra);
   const usr = userPrompt(request.prompt, request.memoryCount, request.vaultContext, request.vaultFileCount);
-  const response = await fetchWithTimeout("https://openrouter.ai/api/v1/chat/completions", {
+  const response = await fetchWithRetry("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -329,29 +437,35 @@ async function generateWithGemini(request: GenerateWithModelRequest): Promise<Ge
 
   const sys = systemPrompt(request.skill, request.projectContext, request.systemExtra);
   const usr = userPrompt(request.prompt, request.memoryCount, request.vaultContext, request.vaultFileCount);
+  const thinkingLevel = request.thinking ?? "off";
+  const thinkingBudget = THINKING_BUDGETS[thinkingLevel];
+  const requestBody: Record<string, unknown> = {
+    systemInstruction: { parts: [{ text: sys }] },
+    contents: [{ role: "user", parts: [{ text: usr }] }],
+  };
+  if (thinkingBudget > 0) {
+    requestBody.generationConfig = { thinkingConfig: { thinkingBudget } };
+  }
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${request.model}:generateContent?key=${apiKey}`;
-  const response = await fetchWithTimeout(url, {
+  const response = await fetchWithRetry(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      systemInstruction: { parts: [{ text: sys }] },
-      contents: [{ role: "user", parts: [{ text: usr }] }],
-    }),
+    body: JSON.stringify(requestBody),
   });
 
   if (!response.ok) throw new Error(`Gemini returned ${response.status}`);
-  const body = (await response.json()) as {
+  const responseBody = (await response.json()) as {
     candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
     usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number };
   };
-  const content = body.candidates?.[0]?.content?.parts?.map((p) => p.text ?? "").join("").trim();
+  const content = responseBody.candidates?.[0]?.content?.parts?.map((p) => p.text ?? "").join("").trim();
   if (!content) throw new Error("Gemini returned an empty response");
 
   return {
     content,
     usage: {
-      inputTokens: body.usageMetadata?.promptTokenCount ?? approxTokens(sys + usr),
-      outputTokens: body.usageMetadata?.candidatesTokenCount ?? approxTokens(content),
+      inputTokens: responseBody.usageMetadata?.promptTokenCount ?? approxTokens(sys + usr),
+      outputTokens: responseBody.usageMetadata?.candidatesTokenCount ?? approxTokens(content),
     },
   };
 }
@@ -362,16 +476,20 @@ async function generateWithGrok(request: GenerateWithModelRequest): Promise<Gene
 
   const sys = systemPrompt(request.skill, request.projectContext, request.systemExtra);
   const usr = userPrompt(request.prompt, request.memoryCount, request.vaultContext, request.vaultFileCount);
-  const response = await fetchWithTimeout("https://api.x.ai/v1/chat/completions", {
+  const payload: Record<string, unknown> = {
+    model: request.model,
+    messages: [
+      { role: "system", content: sys },
+      { role: "user", content: usr },
+    ],
+  };
+  if (request.reasoningEffort && /grok-4|reasoning/.test(request.model)) {
+    payload.reasoning_effort = request.reasoningEffort === "minimal" ? "low" : request.reasoningEffort;
+  }
+  const response = await fetchWithRetry("https://api.x.ai/v1/chat/completions", {
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: request.model,
-      messages: [
-        { role: "system", content: sys },
-        { role: "user", content: usr },
-      ],
-    }),
+    body: JSON.stringify(payload),
   });
 
   if (!response.ok) throw new Error(`Grok returned ${response.status}`);
