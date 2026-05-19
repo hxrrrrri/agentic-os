@@ -41,6 +41,16 @@ function fail(name: string, message: string): ToolCallResult {
   return { callId: createId("toolcall"), ok: false, summary: `${name} failed: ${message}`, error: message };
 }
 
+function emitArtifacts(context: DispatchContext, toolName: string, artifacts: GeneratedArtifact[]) {
+  for (const artifact of artifacts) {
+    emitRunEvent({
+      runId: context.runId,
+      type: "run.artifact",
+      payload: { tool: toolName, artifact },
+    });
+  }
+}
+
 async function logToolCall(
   context: DispatchContext,
   toolName: string,
@@ -157,6 +167,7 @@ export async function dispatchTool(
           { runId: context.runId, skillId: context.skillId, variantGroup },
         );
         context.artifactSink.push(...artifacts);
+        emitArtifacts(context, request.name, artifacts);
         result = ok(
           request.name,
           `Rendered ${slides.length} slides. Preview: ${artifacts[artifacts.length - 1]?.path}`,
@@ -177,6 +188,7 @@ export async function dispatchTool(
           { runId: context.runId, skillId: context.skillId, variantGroup },
         );
         context.artifactSink.push(artifact);
+        emitArtifacts(context, request.name, [artifact]);
         result = ok(request.name, `Rendered thumbnail at ${artifact.path}`, { artifactPath: artifact.path }, [artifact.id]);
         break;
       }
@@ -193,6 +205,7 @@ export async function dispatchTool(
           { runId: context.runId, skillId: context.skillId, variantGroup, caption: args.prompt as string | undefined },
         );
         context.artifactSink.push(artifact);
+        emitArtifacts(context, request.name, [artifact]);
         result = ok(request.name, `Generated image at ${artifact.path}`, { artifactPath: artifact.path }, [artifact.id]);
         break;
       }

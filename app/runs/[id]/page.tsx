@@ -43,6 +43,9 @@ export default async function RunDetailPage({ params }: { params: Promise<{ id: 
             <CardHeader><CardTitle>Original Prompt</CardTitle></CardHeader>
             <pre className="safe-wrap max-w-full whitespace-pre-wrap border border-[#2a302c] bg-[#080a09] p-2 text-[0.78rem] leading-5 text-[#a8a29a]">{run.prompt}</pre>
           </Card>
+          {run.artifacts?.length ? (
+            <ArtifactGallery artifacts={run.artifacts} framed />
+          ) : null}
           {plan?.steps.length ? (
             <Card>
               <CardHeader><CardTitle>Plan Preview</CardTitle><Badge>{plan.steps.length}</Badge></CardHeader>
@@ -84,10 +87,14 @@ export default async function RunDetailPage({ params }: { params: Promise<{ id: 
               </div>
             </Card>
           ) : null}
-          {run.artifacts?.length ? <ArtifactGallery artifacts={run.artifacts} /> : null}
           <Card>
             <CardHeader><CardTitle>Final Output</CardTitle></CardHeader>
-            <LiveOutput runId={run.id} initialContent={run.finalOutput} isProcessing={isProcessing} />
+            <LiveOutput
+              runId={run.id}
+              initialContent={run.finalOutput}
+              initialArtifacts={run.artifacts ?? []}
+              isProcessing={isProcessing}
+            />
           </Card>
           {run.status === "failed" && run.errorDetail ? (
             <Card>

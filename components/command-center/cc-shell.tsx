@@ -17,9 +17,9 @@ export function CommandCenterShell({
     <>
       <CommandCenterHeader activeTab={tab} onTabChange={setTab} />
       <div className="px-[8px] pb-0 pt-[8px]">
-        <div hidden={tab !== "OVERVIEW"}>{overview}</div>
-        <div hidden={tab !== "AUDIENCE"}>{audience}</div>
-        <div hidden={tab !== "RESEARCH"}>{research}</div>
+        <div key={tab} className="page-enter-soft" role="tabpanel">
+          {tab === "OVERVIEW" ? overview : tab === "AUDIENCE" ? audience : research}
+        </div>
       </div>
     </>
   );

@@ -1,37 +1,43 @@
 "use client";
 
 import "@xterm/xterm/css/xterm.css";
-import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Loader2, Pin, Plus, Power, Terminal as TerminalIcon, X } from "lucide-react";
+import { ChevronDown, ChevronUp, Loader2, Plus, Power, Terminal as TerminalIcon, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import type { Terminal } from "@xterm/xterm";
 import type { FitAddon } from "@xterm/addon-fit";
 
-// AgenticOS dark theme for xterm.js
 const XTERM_THEME = {
-  background:        "#1b1b1b",
-  foreground:        "#a8a29a",
-  cursor:            "#e86f3a",
-  cursorAccent:      "#080a08",
-  selectionBackground: "rgba(232,111,58,0.25)",
-  black:             "#1b1b1b",
-  brightBlack:       "#3d4239",
-  red:               "#c4605a",
-  brightRed:         "#e86f3a",
-  green:             "#79a875",
-  brightGreen:       "#9fc39b",
-  yellow:            "#c99a45",
-  brightYellow:      "#e0b96b",
-  blue:              "#5cb8e0",
-  brightBlue:        "#7acce0",
-  magenta:           "#c97aff",
-  brightMagenta:     "#d9a3ff",
-  cyan:              "#5ed3ff",
-  brightCyan:        "#84e0ff",
-  white:             "#a8a29a",
-  brightWhite:       "#f4f1e8",
+  background: "#0c0c0c",
+  foreground: "#cccccc",
+  cursor: "#ffffff",
+  cursorAccent: "#000000",
+  selectionBackground: "rgba(255,255,255,0.25)",
+  black: "#0c0c0c",
+  brightBlack: "#767676",
+  red: "#c50f1f",
+  brightRed: "#e74856",
+  green: "#13a10e",
+  brightGreen: "#16c60c",
+  yellow: "#c19c00",
+  brightYellow: "#f9f1a5",
+  blue: "#0037da",
+  brightBlue: "#3b78ff",
+  magenta: "#881798",
+  brightMagenta: "#b4009e",
+  cyan: "#3a96dd",
+  brightCyan: "#61d6d6",
+  white: "#cccccc",
+  brightWhite: "#f2f2f2",
 };
 
-interface SessionState { id: string; cliId: string; cliLabel: string; alive: boolean }
+interface SessionState {
+  id: string;
+  cliId: string;
+  cliLabel: string;
+  alive: boolean;
+  startedAt?: string;
+  historySize?: number;
+}
 
 interface TerminalAdapter {
   id: string;
@@ -41,37 +47,40 @@ interface TerminalAdapter {
   installHint?: string;
 }
 
-// Decode base64 chunk to Uint8Array for xterm.js
 function b64ToBytes(b64: string): Uint8Array {
   const raw = atob(b64);
   const bytes = new Uint8Array(raw.length);
-  for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
+  for (let i = 0; i < raw.length; i += 1) bytes[i] = raw.charCodeAt(i);
   return bytes;
 }
 
+function truncate(label: string, max = 18) {
+  return label.length > max ? `${label.slice(0, max - 1)}...` : label;
+}
+
 export function TerminalPane() {
-  const [open, setOpen]               = useState(true);
+  const [open, setOpen] = useState(true);
   const [selectedCli, setSelectedCli] = useState("claude-code");
-  const [adapters, setAdapters]       = useState<TerminalAdapter[]>([]);
+  const [adapters, setAdapters] = useState<TerminalAdapter[]>([]);
   const [loadingAdapters, setLoadingAdapters] = useState(true);
-  const [session, setSession]         = useState<SessionState | null>(null);
-  const [isPending, startTransition]  = useTransition();
-  const [errorMsg, setErrorMsg]       = useState<string | null>(null);
+  const [sessions, setSessions] = useState<SessionState[]>([]);
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
 
   const containerRef = useRef<HTMLDivElement>(null);
-  const termRef      = useRef<Terminal | null>(null);
-  const fitRef       = useRef<FitAddon | null>(null);
-  const esRef        = useRef<EventSource | null>(null);
-  const sessionIdRef = useRef<string | null>(null);
-  const startingRef  = useRef(false);
+  const termRef = useRef<Terminal | null>(null);
+  const fitRef = useRef<FitAddon | null>(null);
+  const esRef = useRef<EventSource | null>(null);
+  const activeSessionIdRef = useRef<string | null>(null);
+  const closingStreamRef = useRef(false);
 
-  // Initialise xterm.js once container is mounted
   useEffect(() => {
     if (!containerRef.current) return;
 
     let disposed = false;
+    let resizeObserver: ResizeObserver | undefined;
 
-    // Lazy import — prevents SSR crash
     void (async () => {
       const { Terminal } = await import("@xterm/xterm");
       const { FitAddon } = await import("@xterm/addon-fit");
@@ -79,16 +88,17 @@ export function TerminalPane() {
 
       const term = new Terminal({
         theme: XTERM_THEME,
-        fontFamily: '"JetBrains Mono", "Cascadia Code", ui-monospace, monospace',
-        fontSize: 15,
-        lineHeight: 1.45,
+        fontFamily: '"Cascadia Mono", "Cascadia Code", Consolas, "Courier New", monospace',
+        fontSize: 14,
+        lineHeight: 1,
+        letterSpacing: 0,
         cursorBlink: true,
         cursorStyle: "bar",
-        scrollback: 5000,
-        convertEol: true,
+        scrollback: 10000,
+        convertEol: false,
         allowTransparency: false,
         cols: 120,
-        rows: 24,
+        rows: 32,
       });
 
       const fit = new FitAddon();
@@ -97,271 +107,331 @@ export function TerminalPane() {
       fit.fit();
 
       termRef.current = term;
-      fitRef.current  = fit;
+      fitRef.current = fit;
 
-      // Relay keystrokes → backend raw input
       term.onData((data) => {
-        const sid = sessionIdRef.current;
+        const sid = activeSessionIdRef.current;
         if (!sid) return;
         void fetch(`/api/terminal/${sid}/input`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ data }),
-        });
+        }).catch(() => {});
       });
 
-      // Push the actual xterm size to the PTY whenever fit changes it. Without this
-      // the PTY keeps its initial 120×24 and TUI tools (Copilot CLI especially)
-      // redraw with cursor math that doesn't match the visible viewport — output
-      // stacks instead of overwriting, producing visible duplicates.
-      let lastCols = -1;
-      let lastRows = -1;
       let resizeTimer: ReturnType<typeof setTimeout> | null = null;
       const pushResize = () => {
-        const sid = sessionIdRef.current;
+        const sid = activeSessionIdRef.current;
         if (!sid) return;
-        const cols = term.cols;
-        const rows = term.rows;
-        if (cols === lastCols && rows === lastRows) return;
-        lastCols = cols; lastRows = rows;
         void fetch(`/api/terminal/${sid}/resize`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ cols, rows }),
+          body: JSON.stringify({ cols: term.cols, rows: term.rows }),
         }).catch(() => {});
       };
+
       term.onResize(() => {
         if (resizeTimer) clearTimeout(resizeTimer);
         resizeTimer = setTimeout(pushResize, 80);
       });
 
-      // Auto-fit on container resize
-      const ro = new ResizeObserver(() => {
-        try { fit.fit(); } catch {}
+      resizeObserver = new ResizeObserver(() => {
+        try {
+          fit.fit();
+        } catch {}
       });
-      ro.observe(containerRef.current);
-
-      term.writeln("\x1b[2m— AgenticOS Terminal — select a CLI and click Start —\x1b[0m");
+      resizeObserver.observe(containerRef.current);
     })();
 
     return () => {
       disposed = true;
+      closingStreamRef.current = true;
+      esRef.current?.close();
+      resizeObserver?.disconnect();
       termRef.current?.dispose();
       termRef.current = null;
-      fitRef.current  = null;
+      fitRef.current = null;
     };
   }, []);
 
-  // Load adapters once. The terminal's CLI choice is INDEPENDENT of Settings —
-  // restore its own last selection (agenticos.terminalCli) and fall back to the
-  // first available adapter, NOT the settings active provider.
   useEffect(() => {
     let cancelled = false;
+
     void (async () => {
       try {
         const res = await fetch("/api/terminal/sessions", { cache: "no-store" });
-        const data = (await res.json()) as { adapters?: TerminalAdapter[] };
+        const data = (await res.json()) as { sessions?: SessionState[]; adapters?: TerminalAdapter[] };
         if (cancelled) return;
 
-        const next = data.adapters ?? [];
-        setAdapters(next);
+        const nextAdapters = data.adapters ?? [];
+        const nextSessions = data.sessions ?? [];
+        setAdapters(nextAdapters);
+        setSessions(nextSessions);
 
         const lastTerminalCli = window.localStorage.getItem("agenticos.terminalCli");
-        const preferred = next.find((a) => a.id === lastTerminalCli)
-          ?? next.find((a) => a.available)
-          ?? next.find((a) => a.id === "shell")
-          ?? next[0];
+        const preferred = nextAdapters.find((a) => a.id === lastTerminalCli)
+          ?? nextAdapters.find((a) => a.available)
+          ?? nextAdapters.find((a) => a.id === "shell")
+          ?? nextAdapters[0];
         if (preferred) setSelectedCli(preferred.id);
+        if (nextSessions[0]) setActiveSessionId(nextSessions[0].id);
       } catch {
         if (!cancelled) setErrorMsg("Could not load terminal adapters");
       } finally {
         if (!cancelled) setLoadingAdapters(false);
       }
     })();
-    return () => { cancelled = true; };
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  const pickCli = useCallback((id: string) => {
-    setSelectedCli(id);
-    try { window.localStorage.setItem("agenticos.terminalCli", id); } catch {}
-  }, []);
-
-  // Wire SSE when session changes
-  useEffect(() => {
-    esRef.current?.close();
-    if (!session?.id) return;
-    sessionIdRef.current = session.id;
-
-    const es = new EventSource(`/api/terminal/${session.id}/stream`);
-    esRef.current = es;
-
-    // Immediately sync PTY dims to the current viewport so TUI redraws line up.
+  const syncActiveSize = useCallback((sessionId: string) => {
     const term = termRef.current;
-    if (term) {
-      try { fitRef.current?.fit(); } catch {}
-      void fetch(`/api/terminal/${session.id}/resize`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ cols: term.cols, rows: term.rows }),
-      }).catch(() => {});
+    if (!term) return;
+    try {
+      fitRef.current?.fit();
+    } catch {}
+    void fetch(`/api/terminal/${sessionId}/resize`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ cols: term.cols, rows: term.rows }),
+    }).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    closingStreamRef.current = true;
+    esRef.current?.close();
+    esRef.current = null;
+    closingStreamRef.current = false;
+
+    activeSessionIdRef.current = activeSessionId;
+    const term = termRef.current;
+    if (!term) return;
+
+    term.reset();
+    if (!activeSessionId) {
+      term.writeln("\x1b[2mSelect a CLI and click + to start a terminal.\x1b[0m");
+      return;
     }
 
+    syncActiveSize(activeSessionId);
+
+    const streamSessionId = activeSessionId;
+    const es = new EventSource(`/api/terminal/${streamSessionId}/stream`);
+    esRef.current = es;
+
     es.addEventListener("history", (evt) => {
+      if (activeSessionIdRef.current !== streamSessionId) return;
       const payload = JSON.parse((evt as MessageEvent<string>).data) as { chunks: string[] };
-      termRef.current?.clear();
+      term.reset();
       for (const chunk of payload.chunks) {
-        termRef.current?.write(b64ToBytes(chunk));
+        term.write(b64ToBytes(chunk));
       }
+      setTimeout(() => {
+        try {
+          term.focus();
+        } catch {}
+      }, 20);
     });
+
     es.addEventListener("output", (evt) => {
+      if (activeSessionIdRef.current !== streamSessionId) return;
       const raw = (JSON.parse((evt as MessageEvent<string>).data) as { chunk: string }).chunk;
-      termRef.current?.write(b64ToBytes(raw));
+      term.write(b64ToBytes(raw));
     });
+
     es.addEventListener("exit", () => {
-      termRef.current?.writeln("\r\n\x1b[2m[session ended]\x1b[0m");
-      setSession((s) => s ? { ...s, alive: false } : null);
+      setSessions((current) => current.map((s) => (s.id === streamSessionId ? { ...s, alive: false } : s)));
       es.close();
     });
+
     es.onerror = () => {
-      termRef.current?.writeln("\r\n\x1b[31m[stream disconnected]\x1b[0m");
+      if (!closingStreamRef.current && activeSessionIdRef.current === streamSessionId) {
+        setSessions((current) => current.map((s) => (s.id === streamSessionId ? { ...s, alive: false } : s)));
+      }
       es.close();
     };
 
-    return () => es.close();
-  }, [session?.id]);
+    return () => {
+      closingStreamRef.current = true;
+      es.close();
+    };
+  }, [activeSessionId, syncActiveSize]);
+
+  const pickCli = useCallback((id: string) => {
+    setSelectedCli(id);
+    try {
+      window.localStorage.setItem("agenticos.terminalCli", id);
+    } catch {}
+  }, []);
 
   const startSession = useCallback(() => {
-    if (startingRef.current || session?.alive) return;
-    startingRef.current = true;
     setErrorMsg(null);
     startTransition(async () => {
       try {
+        const term = termRef.current;
+        try {
+          fitRef.current?.fit();
+        } catch {}
+
         const res = await fetch("/api/terminal/sessions", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ cliId: selectedCli }),
+          body: JSON.stringify({
+            cliId: selectedCli,
+            cols: term?.cols,
+            rows: term?.rows,
+          }),
         });
         const data = (await res.json()) as { session?: SessionState; error?: string };
-        if (data.session) {
-          termRef.current?.clear();
-          setSession(data.session);
-          setTimeout(() => { try { termRef.current?.focus(); } catch {} }, 100);
-        } else {
-          setErrorMsg(data.error ?? "Failed to start");
-          termRef.current?.writeln(`\r\n\x1b[31m[Error: ${data.error ?? "Failed to start"}]\x1b[0m`);
-        }
-      } finally {
-        startingRef.current = false;
+        if (!data.session) throw new Error(data.error ?? "Failed to start terminal");
+
+        setSessions((current) => [...current, data.session!]);
+        setActiveSessionId(data.session.id);
+        setOpen(true);
+        setTimeout(() => {
+          try {
+            termRef.current?.focus();
+          } catch {}
+        }, 100);
+      } catch (error) {
+        setErrorMsg(error instanceof Error ? error.message : "Failed to start terminal");
       }
     });
-  }, [selectedCli, session?.alive, startTransition]);
+  }, [selectedCli, startTransition]);
 
-  function killSession() {
-    if (!session) return;
-    void fetch(`/api/terminal/${session.id}`, { method: "DELETE" });
-    termRef.current?.writeln("\r\n\x1b[33m[session killed]\x1b[0m");
-    setSession((s) => s ? { ...s, alive: false } : null);
-    sessionIdRef.current = null;
-  }
+  const killSession = useCallback((sessionId: string) => {
+    void fetch(`/api/terminal/${sessionId}`, { method: "DELETE" }).catch(() => {});
+    setSessions((current) => {
+      const remaining = current.filter((session) => session.id !== sessionId);
+      if (activeSessionIdRef.current === sessionId) {
+        setActiveSessionId(remaining.at(-1)?.id ?? null);
+      }
+      return remaining;
+    });
+  }, []);
 
-  const activeLabel = session ? session.cliLabel : adapters.find((a) => a.id === selectedCli)?.label ?? "Claude Code";
-  const truncatedLabel = activeLabel.length > 10 ? `${activeLabel.slice(0, 10)}…` : activeLabel;
-  const dotColor = session?.alive ? "bg-[#79a875] shadow-[0_0_6px_#79a875]" : "bg-[#6f6a61]";
+  const activeSession = sessions.find((session) => session.id === activeSessionId) ?? null;
+  const activeLabel = activeSession?.cliLabel ?? adapters.find((a) => a.id === selectedCli)?.label ?? "Terminal";
+  const activeAdapterMissing = adapters.find((a) => a.id === selectedCli && !a.available);
 
   return (
-    <div className="rounded-none border border-[#353535] bg-[#1b1b1b] shadow-[0_-1px_0_#2b2b2b]">
-      {/* ── Tab strip ── */}
-      <div className="flex items-center justify-between border-b border-[#323232] bg-[#242424] px-2 py-[5px]">
-        <div className="flex items-center gap-[6px]">
-          <div className={`flex h-8 items-center gap-[7px] rounded-[1px] border px-3 text-[0.72rem] uppercase tracking-[0.12em] ${session?.alive ? "border-[#e86f3a]/40 bg-[#1f1f1f] text-[#f4f1e8]" : "border-[#3f3f3f] bg-[#1f1f1f] text-[#a8a29a]"}`}>
-            <TerminalIcon size={10} className="text-[#a8a29a]" />
-            <span className="text-[#a8a29a]">Terminal:</span>
-            <span className={`cc-live-dot inline-block h-[6px] w-[6px] rounded-full ${dotColor}`} />
-            <span className="text-[#f4f1e8]">{truncatedLabel}</span>
-            <Pin size={9} className="text-[#6f6a61]" />
-            {session?.alive ? (
-              <button type="button" onClick={killSession} aria-label="Close session" className="text-[#6f6a61] transition hover:text-[#c4605a]">
-                <X size={10} />
-              </button>
-            ) : null}
+    <div className="rounded-none border border-[#353535] bg-[#0c0c0c] shadow-[0_-1px_0_#2b2b2b]">
+      <div className="flex items-center justify-between border-b border-[#323232] bg-[#202020] px-2 py-[5px]">
+        <div className="flex min-w-0 flex-1 items-center gap-[6px]">
+          <div className="flex max-w-[58vw] items-center gap-[4px] overflow-x-auto">
+            {sessions.length ? sessions.map((session) => {
+              const isActive = session.id === activeSessionId;
+              return (
+                <div
+                  key={session.id}
+                  className={`group flex h-8 shrink-0 items-center gap-[7px] rounded-[1px] border px-3 text-[0.72rem] uppercase tracking-[0.08em] ${
+                    isActive
+                      ? "border-[#e86f3a]/60 bg-[#0c0c0c] text-[#f4f1e8]"
+                      : "border-[#3f3f3f] bg-[#1a1a1a] text-[#a8a29a] hover:border-[#666]"
+                  }`}
+                  title={session.cliLabel}
+                >
+                  <button
+                    type="button"
+                    onClick={() => setActiveSessionId(session.id)}
+                    className="flex min-w-0 items-center gap-[7px]"
+                  >
+                    <TerminalIcon size={10} className="shrink-0 text-[#a8a29a]" />
+                    <span className={`inline-block h-[6px] w-[6px] shrink-0 rounded-full ${session.alive ? "bg-[#16c60c]" : "bg-[#767676]"}`} />
+                    <span className="truncate">{truncate(session.cliLabel)}</span>
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={`Close ${session.cliLabel}`}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      killSession(session.id);
+                    }}
+                    className="text-[#767676] transition hover:text-[#e74856]"
+                  >
+                    <X size={10} />
+                  </button>
+                </div>
+              );
+            }) : (
+              <div className="flex h-8 items-center gap-[7px] rounded-[1px] border border-[#3f3f3f] bg-[#1a1a1a] px-3 text-[0.72rem] uppercase tracking-[0.08em] text-[#a8a29a]">
+                <TerminalIcon size={10} />
+                Terminal
+              </div>
+            )}
           </div>
 
-          {!session?.alive ? (
-            <>
-              <select
-                value={selectedCli}
-                onChange={(e) => pickCli(e.target.value)}
-                disabled={loadingAdapters}
-                title="Terminal CLI is independent of the Settings active provider — pick any installed CLI here"
-                className="h-8 rounded-[1px] border border-[#3f3f3f] bg-[#1f1f1f] px-3 text-[0.72rem] uppercase tracking-[0.12em] text-[#a8a29a] outline-none focus:border-[#e86f3a]"
-              >
-                {adapters.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.available ? a.label : `${a.label} (missing)`}
-                  </option>
-                ))}
-              </select>
-              <button type="button" onClick={startSession} disabled={isPending}
-                className="flex h-8 items-center gap-2 rounded-[1px] border border-[#79a875]/50 bg-[#1f1f1f] px-3 text-[0.72rem] font-bold uppercase tracking-[0.12em] text-[#79a875] transition hover:border-[#79a875] hover:bg-[#0d1a0d] disabled:cursor-wait disabled:opacity-50"
-                title="Start session">
-                {isPending ? <Loader2 size={9} className="animate-spin" /> : <Power size={9} />}
-                {isPending ? "Starting..." : "Start"}
-              </button>
-            </>
-          ) : null}
+          <select
+            value={selectedCli}
+            onChange={(event) => pickCli(event.target.value)}
+            disabled={loadingAdapters}
+            title="Choose provider for the next terminal tab"
+            className="h-8 shrink-0 rounded-[1px] border border-[#3f3f3f] bg-[#1a1a1a] px-2 text-[0.72rem] uppercase tracking-[0.08em] text-[#cccccc] outline-none focus:border-[#e86f3a]"
+          >
+            {adapters.map((adapter) => (
+              <option key={adapter.id} value={adapter.id}>
+                {adapter.available ? adapter.label : `${adapter.label} (missing)`}
+              </option>
+            ))}
+          </select>
 
-          <button type="button" aria-label="New tab" tabIndex={-1}
-            className="flex h-8 w-8 items-center justify-center rounded-[1px] border border-[#3f3f3f] bg-[#1f1f1f] text-[#6f6a61] transition hover:border-[#e86f3a] hover:text-[#e86f3a]">
-            <Plus size={11} />
+          <button
+            type="button"
+            onClick={startSession}
+            disabled={isPending}
+            aria-label="New terminal"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[1px] border border-[#3f3f3f] bg-[#1a1a1a] text-[#cccccc] transition hover:border-[#e86f3a] hover:text-[#e86f3a] disabled:cursor-wait disabled:opacity-50"
+            title="Start a new terminal with the selected provider"
+          >
+            {isPending ? <Loader2 size={12} className="animate-spin" /> : <Plus size={13} />}
           </button>
 
-          {errorMsg ? <span className="ml-1 text-[0.72rem] text-[#c4605a]">{errorMsg}</span> : null}
-          {!session?.alive && adapters.find((a) => a.id === selectedCli && !a.available) ? (
-            <span className="max-w-[320px] truncate text-[0.72rem] text-[#c99a45]">
-              missing: {adapters.find((a) => a.id === selectedCli)?.installHint ?? adapters.find((a) => a.id === selectedCli)?.command}
+          {!sessions.length ? (
+            <button
+              type="button"
+              onClick={startSession}
+              disabled={isPending}
+              className="flex h-8 shrink-0 items-center gap-2 rounded-[1px] border border-[#16c60c]/50 bg-[#1a1a1a] px-3 text-[0.72rem] font-bold uppercase tracking-[0.08em] text-[#16c60c] transition hover:border-[#16c60c] disabled:cursor-wait disabled:opacity-50"
+            >
+              <Power size={10} />
+              Start
+            </button>
+          ) : null}
+
+          {errorMsg ? <span className="truncate text-[0.72rem] text-[#e74856]">{errorMsg}</span> : null}
+          {activeAdapterMissing ? (
+            <span className="truncate text-[0.72rem] text-[#f9f1a5]">
+              missing: {activeAdapterMissing.installHint ?? activeAdapterMissing.command}
             </span>
           ) : null}
         </div>
 
-        <button type="button" onClick={() => setOpen((v) => !v)}
-          className="flex h-8 w-8 items-center justify-center rounded-[1px] border border-[#3f3f3f] bg-[#1f1f1f] text-[#6f6a61] transition hover:border-[#e86f3a] hover:text-[#e86f3a]"
-          aria-label={open ? "Collapse terminal" : "Expand terminal"}>
-          {open ? <ChevronDown size={11} /> : <ChevronUp size={11} />}
+        <button
+          type="button"
+          onClick={() => setOpen((value) => !value)}
+          className="ml-2 flex h-8 w-8 shrink-0 items-center justify-center rounded-[1px] border border-[#3f3f3f] bg-[#1a1a1a] text-[#cccccc] transition hover:border-[#e86f3a] hover:text-[#e86f3a]"
+          aria-label={open ? "Collapse terminal" : "Expand terminal"}
+        >
+          {open ? <ChevronDown size={12} /> : <ChevronUp size={12} />}
         </button>
       </div>
 
-      {/* ── Tab content strip (nav + centered title) ── */}
       {open ? (
-        <div className="grid grid-cols-[auto_1fr_auto] items-center gap-2 border-b border-[#323232] bg-[#1b1b1b] px-2 py-[4px]">
-          <div className="flex items-center gap-1">
-            <button type="button" aria-label="Back" tabIndex={-1}
-              className="flex h-[18px] w-[18px] items-center justify-center rounded-[2px] text-[#6f6a61] transition hover:text-[#e86f3a]">
-              <ChevronLeft size={11} />
-            </button>
-            <button type="button" aria-label="Forward" tabIndex={-1}
-              className="flex h-[18px] w-[18px] items-center justify-center rounded-[2px] text-[#6f6a61] transition hover:text-[#e86f3a]">
-              <ChevronRight size={11} />
-            </button>
-          </div>
-          <div className="text-center text-[0.72rem] uppercase tracking-[0.12em] text-[#a8a29a]">
-            Terminal:
-            <span className={`cc-live-dot ml-2 inline-block h-[6px] w-[6px] rounded-full align-middle ${dotColor}`} />
-            <span className="ml-2 text-[#f4f1e8]">{activeLabel}</span>
-          </div>
-          <div className="w-[36px]" />
+        <div className="border-b border-[#323232] bg-[#141414] px-2 py-[4px] text-center text-[0.72rem] uppercase tracking-[0.08em] text-[#a8a29a]">
+          Terminal:
+          <span className={`ml-2 inline-block h-[6px] w-[6px] rounded-full align-middle ${activeSession?.alive ? "bg-[#16c60c]" : "bg-[#767676]"}`} />
+          <span className="ml-2 text-[#f4f1e8]">{activeLabel}</span>
         </div>
       ) : null}
 
-      {/* ── xterm.js viewport ── */}
       <div
         className="transition-[height] duration-200"
-        style={{ height: open ? "300px" : "0px", overflow: "hidden" }}
+        style={{ height: open ? "min(58vh, 620px)" : "0px", minHeight: open ? "460px" : "0px", overflow: "hidden" }}
       >
-        <div
-          ref={containerRef}
-          className="h-full w-full"
-          style={{ padding: "4px 6px" }}
-        />
+        <div ref={containerRef} className="h-full w-full" />
       </div>
     </div>
   );

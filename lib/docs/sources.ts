@@ -88,7 +88,7 @@ export async function listDocs(): Promise<DocFileEntry[]> {
 
   // top-level project docs
   for (const name of ROOT_DOC_FILES) {
-    const full = path.join(process.cwd(), name);
+    const full = path.join(/*turbopackIgnore: true*/ process.cwd(), name);
     const stat = await safeStat(full);
     if (!stat) continue;
     let title = name;
@@ -124,7 +124,7 @@ export async function readDoc(id: string): Promise<{ content: string; title: str
   }
   if (group === "root") {
     if (!ROOT_DOC_FILES.includes(rel)) throw new Error("Doc not in whitelist");
-    const target = path.join(process.cwd(), rel);
+    const target = path.join(/*turbopackIgnore: true*/ process.cwd(), rel);
     const content = await fsp.readFile(target, "utf8");
     return { content, title: titleFromContent(content, rel), relativePath: rel };
   }

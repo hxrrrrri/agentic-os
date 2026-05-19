@@ -27,6 +27,16 @@ const row2: CommandButton[] = [
   { label: "Pull Metrics", skillId: "pull-metrics", prompt: "Pull latest metrics from connected platforms (YouTube, Instagram, TikTok). Update dashboard cache and surface deltas." },
 ];
 
+const THINKING_PROVIDER_IDS = new Set(["anthropic", "gemini-cli", "gemini", "ollama"]);
+const EFFORT_PROVIDER_IDS = new Set(["claude-code", "codex", "copilot-cli", "openai", "grok", "nvidia", "openrouter"]);
+const DEFAULT_MODEL_BY_PROVIDER: Record<string, string> = {
+  "claude-code": "claude-sonnet-4-6",
+  codex: "gpt-5.2",
+  "copilot-cli": "claude-sonnet-4.6",
+  "gemini-cli": "gemini-2.5-pro",
+  ollama: "llama3.2:latest",
+};
+
 export function CommandBar() {
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -53,13 +63,14 @@ export function CommandBar() {
       const selectedModels = parseRecord<string>(storedModels);
       const thinkingMap = parseRecord<ThinkingLevel>(storedThinking);
       const effortMap = parseRecord<ReasoningEffort>(storedEffort);
+      const model = providerId ? selectedModels[providerId] ?? DEFAULT_MODEL_BY_PROVIDER[providerId] : undefined;
       const modelProfile: SelectedModelProfile | undefined =
-        providerId && selectedModels[providerId]
+        providerId && model
           ? {
               providerId,
-              model: selectedModels[providerId],
-              thinking: thinkingMap[providerId],
-              reasoningEffort: effortMap[providerId],
+              model,
+              thinking: THINKING_PROVIDER_IDS.has(providerId) ? thinkingMap[providerId] ?? "off" : undefined,
+              reasoningEffort: EFFORT_PROVIDER_IDS.has(providerId) ? effortMap[providerId] ?? "medium" : undefined,
             }
           : undefined;
 

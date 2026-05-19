@@ -41,6 +41,15 @@ interface RunPayload {
   stderr?: string;
 }
 
+function formatSuiteName(name: string): string {
+  const normalized = name.replaceAll("\\", "/");
+  const marker = "/tests/";
+  const markerIndex = normalized.lastIndexOf(marker);
+  if (markerIndex >= 0) return `tests/${normalized.slice(markerIndex + marker.length)}`;
+  const parts = normalized.split("/").filter(Boolean);
+  return parts.slice(-3).join("/") || name;
+}
+
 export function TestsPanel() {
   const [files, setFiles] = useState<string[]>([]);
   const [results, setResults] = useState<VitestResult | null>(null);
@@ -157,7 +166,7 @@ export function TestsPanel() {
                       <XCircle size={13} className="mt-[2px] text-[#e86f3a]" />
                     )}
                     <div className="min-w-0">
-                      <div className="truncate font-mono text-[0.74rem]">{suite.name.replace(process.cwd(), "")}</div>
+                      <div className="truncate font-mono text-[0.74rem]">{formatSuiteName(suite.name)}</div>
                       <div className="text-[0.66rem] text-[#8b857b]">
                         {passed} passed · {failed} failed
                       </div>

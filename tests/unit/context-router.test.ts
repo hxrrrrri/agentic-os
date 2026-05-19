@@ -5,6 +5,7 @@ import path from "node:path";
 
 const tmpRoot = path.join(os.tmpdir(), `agenticos-router-test-${Date.now()}`);
 const ctxRoot = path.join(tmpRoot, ".agenticos-project");
+const originalCwd = process.cwd();
 
 beforeAll(async () => {
   await fs.mkdir(path.join(ctxRoot, "rules"), { recursive: true });
@@ -16,6 +17,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  process.chdir(originalCwd);
   await fs.rm(tmpRoot, { recursive: true, force: true });
 });
 

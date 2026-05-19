@@ -40,7 +40,7 @@ export const INTEGRATIONS: IntegrationSpec[] = [
     description: "NVIDIA-hosted Llama, Qwen, DeepSeek, and embedding models.",
     docsUrl: "https://build.nvidia.com",
     fields: [{ key: "NVIDIA_API_KEY", label: "API key", type: "password" }],
-    testEndpoint: { method: "POST", path: "/api/model-providers/nvidia/test" },
+    testEndpoint: { method: "POST", path: "/api/model-providers", body: { provider: "nvidia", action: "test" } },
   },
   {
     id: "openai",
@@ -49,7 +49,7 @@ export const INTEGRATIONS: IntegrationSpec[] = [
     description: "GPT models + text-embedding-3-small.",
     docsUrl: "https://platform.openai.com/api-keys",
     fields: [{ key: "OPENAI_API_KEY", label: "API key", type: "password" }],
-    testEndpoint: { method: "POST", path: "/api/model-providers/openai/test" },
+    testEndpoint: { method: "POST", path: "/api/model-providers", body: { provider: "openai", action: "test" } },
   },
   {
     id: "anthropic",
@@ -58,7 +58,7 @@ export const INTEGRATIONS: IntegrationSpec[] = [
     description: "Claude models (Opus, Sonnet, Haiku).",
     docsUrl: "https://console.anthropic.com/settings/keys",
     fields: [{ key: "ANTHROPIC_API_KEY", label: "API key", type: "password" }],
-    testEndpoint: { method: "POST", path: "/api/model-providers/anthropic/test" },
+    testEndpoint: { method: "POST", path: "/api/model-providers", body: { provider: "anthropic", action: "test" } },
   },
   {
     id: "gemini",
@@ -67,7 +67,7 @@ export const INTEGRATIONS: IntegrationSpec[] = [
     description: "Gemini 1.5 / 2.0 models.",
     docsUrl: "https://aistudio.google.com/apikey",
     fields: [{ key: "GEMINI_API_KEY", label: "API key", type: "password" }],
-    testEndpoint: { method: "POST", path: "/api/model-providers/gemini/test" },
+    testEndpoint: { method: "POST", path: "/api/model-providers", body: { provider: "gemini", action: "test" } },
   },
   {
     id: "openrouter",
@@ -76,7 +76,7 @@ export const INTEGRATIONS: IntegrationSpec[] = [
     description: "Unified gateway to dozens of model providers.",
     docsUrl: "https://openrouter.ai/keys",
     fields: [{ key: "OPENROUTER_API_KEY", label: "API key", type: "password" }],
-    testEndpoint: { method: "POST", path: "/api/model-providers/openrouter/test" },
+    testEndpoint: { method: "POST", path: "/api/model-providers", body: { provider: "openrouter", action: "test" } },
   },
   {
     id: "grok",
@@ -85,7 +85,7 @@ export const INTEGRATIONS: IntegrationSpec[] = [
     description: "Grok models from xAI.",
     docsUrl: "https://console.x.ai",
     fields: [{ key: "GROK_API_KEY", label: "API key", type: "password" }],
-    testEndpoint: { method: "POST", path: "/api/model-providers/grok/test" },
+    testEndpoint: { method: "POST", path: "/api/model-providers", body: { provider: "grok", action: "test" } },
   },
   {
     id: "groq",

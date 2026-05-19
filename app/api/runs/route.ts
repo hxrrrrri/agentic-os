@@ -3,7 +3,7 @@ import { z } from "zod";
 import { startRun } from "@/lib/agent/engine";
 import { listRuns } from "@/lib/db/repositories";
 import { listModelProviders } from "@/lib/agent/providers";
-import type { SelectedModelProfile } from "@/types";
+import type { ModelEndpoint, ReasoningEffort, SelectedModelProfile } from "@/types";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -21,6 +21,18 @@ const RunRequestSchema = z.object({
     reasoningEffort: z.enum(["minimal", "low", "medium", "high", "xhigh"]).optional(),
   }).optional(),
 });
+
+const EFFORT_PROVIDERS = new Set(["claude-code", "codex", "copilot-cli", "openai", "grok", "nvidia", "openrouter"]);
+
+function supportsEffort(provider: ModelEndpoint) {
+  return EFFORT_PROVIDERS.has(provider.id) || EFFORT_PROVIDERS.has(provider.provider);
+}
+
+function defaultEffort(provider: ModelEndpoint): ReasoningEffort | undefined {
+  if (!supportsEffort(provider)) return undefined;
+  if (provider.reasoningEfforts?.includes("medium")) return "medium";
+  return provider.reasoningEfforts?.[0] ?? "medium";
+}
 
 // Pick a working default when the client (e.g. Command Center quick buttons)
 // does not pass a modelProfile. Without this the engine falls back to the
@@ -46,7 +58,8 @@ function deriveDefaultProfile(): SelectedModelProfile | undefined {
   if (!chosen) return undefined;
   return {
     providerId: chosen.id,
-    model: chosen.models?.[0] ?? chosen.model,
+    model: chosen.model,
+    reasoningEffort: defaultEffort(chosen),
   };
 }
 

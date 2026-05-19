@@ -29,9 +29,11 @@ export function ConflictPanel({ initial }: { initial: ConflictResult[] }) {
     });
   }
 
+  const isEmpty = conflicts.length === 0 && !msg;
+
   return (
-    <div className="terminal-panel bg-[#121411] p-3">
-      <div className="mb-3 flex items-center justify-between">
+    <div className="terminal-panel bg-[#121411] px-3 py-2">
+      <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="terminal-label text-[#f4f1e8]">Conflicts</span>
           {conflicts.length > 0 ? (
@@ -54,14 +56,14 @@ export function ConflictPanel({ initial }: { initial: ConflictResult[] }) {
         </button>
       </div>
 
-      {msg ? <div className="mb-2 text-[0.62rem] text-[#a8a29a]">{msg}</div> : null}
+      {msg ? <div className="mt-1.5 text-[0.62rem] text-[#a8a29a]">{msg}</div> : null}
 
-      {conflicts.length === 0 ? (
-        <div className="text-[0.7rem] text-[#6f6a61]">No issues found. Run a scan after indexing.</div>
-      ) : (
-        <div className="space-y-2">
+      {/* Skip the empty-state line entirely — the "Clean" badge already
+          communicates the state, no need for a second sentence. */}
+      {!isEmpty && conflicts.length > 0 ? (
+        <div className="mt-2 space-y-1.5">
           {conflicts.map((c, i) => (
-            <div key={i} className="border border-[#2a302c] bg-[#080a09] p-2">
+            <div key={i} className="border border-[#2a302c] bg-[#080a09] p-1.5">
               <div className="flex items-start gap-2">
                 <span
                   className="mt-[2px] shrink-0 rounded-[2px] border px-[5px] py-[1px] text-[0.5rem] font-bold uppercase tracking-[0.12em]"
@@ -74,15 +76,15 @@ export function ConflictPanel({ initial }: { initial: ConflictResult[] }) {
                   {TYPE_LABEL[c.type]}
                 </span>
                 <div className="min-w-0">
-                  <div className="truncate text-[0.68rem] font-bold text-[#f4f1e8]">{c.noteA.split("/").pop()}</div>
-                  {c.noteB ? <div className="truncate text-[0.62rem] text-[#8b857b]">↔ {c.noteB.split("/").pop()}</div> : null}
-                  <div className="mt-[3px] text-[0.62rem] leading-[1.4] text-[#6f6a61]">{c.detail}</div>
+                  <div className="truncate text-[0.66rem] font-bold text-[#f4f1e8]">{c.noteA.split("/").pop()}</div>
+                  {c.noteB ? <div className="truncate text-[0.6rem] text-[#8b857b]">↔ {c.noteB.split("/").pop()}</div> : null}
+                  <div className="mt-[2px] text-[0.6rem] leading-[1.4] text-[#6f6a61]">{c.detail}</div>
                 </div>
               </div>
             </div>
           ))}
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

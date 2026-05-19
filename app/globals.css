@@ -77,9 +77,15 @@ body {
   margin: 0;
   max-width: 100vw;
   overflow-x: clip;
+  overflow-y: auto;
   background: #000000;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
-  font-size: 14px;
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+.terminal-label {
+  font-size: 0.78rem;
 }
 
 a {
@@ -154,12 +160,21 @@ a {
 }
 
 .app-frame {
-  width: min(1400px, calc(100vw - 32px));
+  width: min(1400px, max(960px, 70vw));
+  max-width: calc(100vw - 32px);
   margin: 0 auto;
 }
 
 .app-frame-wide {
-  width: min(1888px, calc(100vw - 16px));
+  width: min(1500px, max(1080px, 78vw));
+  max-width: calc(100vw - 24px);
+}
+
+@media (max-width: 980px) {
+  .app-frame,
+  .app-frame-wide {
+    width: calc(100vw - 24px);
+  }
 }
 
 .app-chrome {
@@ -167,34 +182,80 @@ a {
 }
 
 .segmented-meter {
-  height: 8px;
+  position: relative;
+  height: 14px;
   border: 1px solid #2a302c;
+  border-radius: 2px;
   background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.025), rgba(0, 0, 0, 0.4)),
     repeating-linear-gradient(
       90deg,
-      #e86f3a 0,
-      #e86f3a 2px,
-      #7d371f 2px,
-      #7d371f 4px,
-      transparent 4px,
-      transparent 6px
+      rgba(125, 55, 31, 0.18) 0,
+      rgba(125, 55, 31, 0.18) 4px,
+      rgba(20, 20, 20, 0.85) 4px,
+      rgba(20, 20, 20, 0.85) 6px
     ),
     #0b0d0c;
+  overflow: hidden;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), inset 0 -1px 0 rgba(0, 0, 0, 0.5);
 }
 
 .segmented-meter > span {
   display: block;
   height: 100%;
+  position: relative;
   background:
-    repeating-linear-gradient(
-      90deg,
-      #e86f3a 0,
-      #e86f3a 2px,
-      #ff9a63 2px,
-      #ff9a63 3px,
-      #5d2818 3px,
-      #5d2818 5px
-    );
+    linear-gradient(180deg, rgba(255, 255, 255, 0.18) 0%, rgba(255, 255, 255, 0) 55%),
+    linear-gradient(90deg, #d64f2f 0%, #e97848 55%, #ffb088 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 230, 210, 0.35),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.4),
+    0 0 10px rgba(233, 120, 72, 0.55),
+    0 0 22px rgba(233, 120, 72, 0.28);
+  transition: width 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+  animation: meter-glow-pulse 3.4s ease-in-out infinite;
+}
+
+.segmented-meter > span::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 220, 195, 0.18) 50%,
+    transparent 100%
+  );
+  transform: translateX(-100%);
+  animation: meter-shimmer 4.5s ease-in-out infinite;
+}
+
+@keyframes meter-glow-pulse {
+  0%,
+  100% {
+    box-shadow:
+      inset 0 1px 0 rgba(255, 230, 210, 0.35),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.4),
+      0 0 8px rgba(233, 120, 72, 0.4),
+      0 0 18px rgba(233, 120, 72, 0.2);
+  }
+  50% {
+    box-shadow:
+      inset 0 1px 0 rgba(255, 230, 210, 0.45),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.4),
+      0 0 14px rgba(233, 120, 72, 0.65),
+      0 0 28px rgba(233, 120, 72, 0.35);
+  }
+}
+
+@keyframes meter-shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  60%,
+  100% {
+    transform: translateX(220%);
+  }
 }
 
 .chart-grid {
@@ -382,3 +443,155 @@ a {
   margin-top: 5px;
   box-shadow: 0 -10px 24px rgba(0, 0, 0, 0.22);
 }
+
+/* ─── Page transitions & animations ────────────────────────────── */
+
+@keyframes ao-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes ao-fade-in-soft {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes ao-stagger-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes ao-pulse-soft {
+  0%,
+  100% {
+    opacity: 0.85;
+    filter: drop-shadow(0 0 4px rgba(233, 120, 72, 0.3));
+  }
+  50% {
+    opacity: 1;
+    filter: drop-shadow(0 0 10px rgba(233, 120, 72, 0.55));
+  }
+}
+
+@keyframes ao-sweep {
+  0% {
+    background-position: -150% 0;
+  }
+  100% {
+    background-position: 250% 0;
+  }
+}
+
+.page-enter {
+  animation: ao-fade-in 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.page-enter-soft {
+  animation: ao-fade-in-soft 0.5s ease both;
+}
+
+.stagger-item {
+  opacity: 0;
+  animation: ao-stagger-up 0.5s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.stagger-item:nth-child(1) {
+  animation-delay: 40ms;
+}
+.stagger-item:nth-child(2) {
+  animation-delay: 100ms;
+}
+.stagger-item:nth-child(3) {
+  animation-delay: 160ms;
+}
+.stagger-item:nth-child(4) {
+  animation-delay: 220ms;
+}
+.stagger-item:nth-child(5) {
+  animation-delay: 280ms;
+}
+.stagger-item:nth-child(6) {
+  animation-delay: 340ms;
+}
+
+.card-lift {
+  transition:
+    transform 0.32s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.32s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.32s ease;
+}
+
+.card-lift:hover {
+  transform: translateY(-2px);
+  border-color: rgba(233, 120, 72, 0.45);
+  box-shadow:
+    inset 0 1px rgba(244, 241, 232, 0.06),
+    0 0 0 1px rgba(0, 0, 0, 0.58),
+    0 6px 22px rgba(0, 0, 0, 0.45),
+    0 0 28px rgba(233, 120, 72, 0.18);
+}
+
+.chart-pulse {
+  animation: ao-pulse-soft 4.5s ease-in-out infinite;
+}
+
+.chart-sweep {
+  background-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(233, 120, 72, 0.08) 45%,
+    rgba(233, 120, 72, 0.18) 50%,
+    rgba(233, 120, 72, 0.08) 55%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: ao-sweep 6s linear infinite;
+  pointer-events: none;
+}
+
+/* nav button microinteraction */
+.nav-pill {
+  position: relative;
+  transition:
+    background-color 0.22s ease,
+    color 0.22s ease,
+    border-color 0.22s ease,
+    transform 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.nav-pill:hover {
+  transform: translateY(-1px);
+}
+
+.nav-pill::after {
+  content: "";
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: -2px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(233, 120, 72, 0.7), transparent);
+  opacity: 0;
+  transition: opacity 0.22s ease;
+}
+
+.nav-pill:hover::after {
+  opacity: 1;
+}
+

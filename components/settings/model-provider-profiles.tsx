@@ -10,6 +10,9 @@ interface ProviderModelState {
   models: string[];
   loading: boolean;
   error?: string;
+  reasoningEfforts?: ReasoningEffort[];
+  reasoningEffortsByModel?: Record<string, ReasoningEffort[]>;
+  thinkingLevels?: ThinkingLevel[];
 }
 
 type ProviderTestStatus = "idle" | "checking" | "ok" | "error";
@@ -49,8 +52,8 @@ const EFFORT_OPTIONS: { value: ReasoningEffort; label: string }[] = [
   { value: "xhigh", label: "XHigh" },
 ];
 
-const THINKING_PROVIDERS = new Set(["claude-code", "anthropic", "gemini-cli", "gemini", "ollama"]);
-const EFFORT_PROVIDERS = new Set(["codex", "copilot-cli", "openai", "grok", "nvidia", "openrouter"]);
+const THINKING_PROVIDERS = new Set(["anthropic", "gemini-cli", "gemini", "ollama"]);
+const EFFORT_PROVIDERS = new Set(["claude-code", "codex", "copilot-cli", "openai", "grok", "nvidia", "openrouter"]);
 
 function supportsThinking(provider: ModelEndpoint): boolean {
   return THINKING_PROVIDERS.has(provider.id) || THINKING_PROVIDERS.has(provider.provider);
@@ -60,7 +63,10 @@ function supportsEffort(provider: ModelEndpoint): boolean {
   return EFFORT_PROVIDERS.has(provider.id) || EFFORT_PROVIDERS.has(provider.provider);
 }
 
-function thinkingOptionsFor(provider: ModelEndpoint) {
+function thinkingOptionsFor(provider: ModelEndpoint, levels?: ThinkingLevel[]) {
+  if (levels?.length) {
+    return THINKING_OPTIONS.filter((option) => levels.includes(option.value));
+  }
   const id = provider.id || provider.provider;
   // Only Claude CLI accepts the keyword cascade (think / think hard / think harder / ultrathink).
   // Anthropic API / Gemini / Ollama get a simpler off/on/deep mapping.
@@ -69,11 +75,14 @@ function thinkingOptionsFor(provider: ModelEndpoint) {
   return THINKING_OPTIONS.filter((o) => o.value === "off" || o.value === "think" || o.value === "think-hard");
 }
 
-function effortOptionsFor(provider: ModelEndpoint) {
+function effortOptionsFor(provider: ModelEndpoint, selectedModel?: string, state?: ProviderModelState) {
+  const dynamicEfforts = selectedModel ? state?.reasoningEffortsByModel?.[selectedModel] : undefined;
+  const efforts = dynamicEfforts ?? state?.reasoningEfforts ?? provider.reasoningEfforts;
+  if (efforts?.length) {
+    return EFFORT_OPTIONS.filter((option) => efforts.includes(option.value));
+  }
   const id = provider.id || provider.provider;
-  // Codex CLI: `low | medium | high | xhigh` (from `codex exec --help`).
-  // Copilot CLI: `low | medium | high | xhigh` (from `copilot --help` flag set).
-  if (id === "copilot-cli" || id === "codex") {
+  if (id === "claude-code" || id === "copilot-cli" || id === "codex") {
     return EFFORT_OPTIONS.filter((option) => option.value !== "minimal");
   }
   // OpenAI / Grok / NVIDIA expose `minimal | low | medium | high` on the
@@ -93,6 +102,11 @@ function getInitialModel(provider: ModelEndpoint, models: string[]) {
 
 function uniqueModels(models: string[]) {
   return Array.from(new Set(models.map((model) => model.trim()).filter(Boolean)));
+}
+
+function defaultEffort(options: Array<{ value: ReasoningEffort }>) {
+  if (options.some((option) => option.value === "medium")) return "medium";
+  return options[0]?.value ?? "medium";
 }
 
 function parseRecord<T>(raw: string | null): Record<string, T> {
@@ -125,7 +139,12 @@ export function ModelProviderProfiles({ providers }: { providers: ModelEndpoint[
     Object.fromEntries(
       providers.map((provider) => [
         provider.id,
-        { models: uniqueModels(provider.models ?? [provider.model]), loading: false },
+        {
+          models: uniqueModels(provider.models ?? [provider.model]),
+          loading: false,
+          reasoningEfforts: provider.reasoningEfforts,
+          thinkingLevels: provider.thinkingLevels,
+        },
       ]),
     ),
   );
@@ -194,7 +213,12 @@ export function ModelProviderProfiles({ providers }: { providers: ModelEndpoint[
   const testProvider = useCallback(async (provider: ModelEndpoint) => {
     setTestState((current) => ({ ...current, [provider.id]: { status: "checking" } }));
     try {
-      const response = await fetch(`/api/model-providers/${provider.id}/test`, { method: "POST", cache: "no-store" });
+      const response = await fetch("/api/model-providers", {
+        method: "POST",
+        cache: "no-store",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ provider: provider.id, action: "test" }),
+      });
       const body = (await response.json()) as { ok: boolean; message: string };
       setTestState((current) => ({
         ...current,
@@ -210,13 +234,19 @@ export function ModelProviderProfiles({ providers }: { providers: ModelEndpoint[
     }
   }, []);
 
-  const activateProvider = useCallback(async (provider: ModelEndpoint, model: string) => {
+  const activateProvider = useCallback(async (provider: ModelEndpoint, model: string, currentThinking?: ThinkingLevel, currentEffort?: ReasoningEffort) => {
     const ok = await testProvider(provider);
     if (ok) {
       setSelectedModels((current) => ({ ...current, [provider.id]: model }));
+      if (supportsThinking(provider) && currentThinking) {
+        setThinking((current) => ({ ...current, [provider.id]: currentThinking }));
+      }
+      if (supportsEffort(provider) && currentEffort) {
+        setEffort((current) => ({ ...current, [provider.id]: currentEffort }));
+      }
       setActiveProvider(provider.id);
     }
-  }, [setActiveProvider, setSelectedModels, testProvider]);
+  }, [setActiveProvider, setEffort, setSelectedModels, setThinking, testProvider]);
 
   const refreshModels = useCallback(async (provider: ModelEndpoint) => {
     setModelState((current) => ({
@@ -224,17 +254,33 @@ export function ModelProviderProfiles({ providers }: { providers: ModelEndpoint[
       [provider.id]: {
         models: uniqueModels(current[provider.id]?.models ?? provider.models ?? [provider.model]),
         loading: true,
+        reasoningEfforts: current[provider.id]?.reasoningEfforts ?? provider.reasoningEfforts,
+        reasoningEffortsByModel: current[provider.id]?.reasoningEffortsByModel,
+        thinkingLevels: current[provider.id]?.thinkingLevels ?? provider.thinkingLevels,
       },
     }));
 
     try {
-      const response = await fetch(`/api/model-providers/${provider.id}/models`, { cache: "no-store" });
-      const body = (await response.json()) as { models?: string[]; error?: string };
+      const response = await fetch(`/api/model-providers?provider=${encodeURIComponent(provider.id)}&action=models`, { cache: "no-store" });
+      const body = (await response.json()) as {
+        models?: string[];
+        error?: string;
+        reasoningEfforts?: ReasoningEffort[];
+        reasoningEffortsByModel?: Record<string, ReasoningEffort[]>;
+        thinkingLevels?: ThinkingLevel[];
+      };
       const models = uniqueModels(body.models?.length ? body.models : provider.models ?? [provider.model]);
 
       setModelState((current) => ({
         ...current,
-        [provider.id]: { models, loading: false, error: response.ok ? undefined : body.error },
+        [provider.id]: {
+          models,
+          loading: false,
+          error: response.ok ? undefined : body.error,
+          reasoningEfforts: body.reasoningEfforts ?? provider.reasoningEfforts,
+          reasoningEffortsByModel: body.reasoningEffortsByModel,
+          thinkingLevels: body.thinkingLevels ?? provider.thinkingLevels,
+        },
       }));
       setSelectedModels((current) => ({
         ...current,
@@ -248,6 +294,8 @@ export function ModelProviderProfiles({ providers }: { providers: ModelEndpoint[
         [provider.id]: {
           models: uniqueModels(provider.models ?? [provider.model]),
           loading: false,
+          reasoningEfforts: provider.reasoningEfforts,
+          thinkingLevels: provider.thinkingLevels,
           error: `Could not load ${providerLabel[provider.id] ?? provider.provider} models.`,
         },
       }));
@@ -274,20 +322,22 @@ export function ModelProviderProfiles({ providers }: { providers: ModelEndpoint[
         const state = modelState[provider.id] ?? {
           models: uniqueModels(provider.models ?? [provider.model]),
           loading: false,
+          reasoningEfforts: provider.reasoningEfforts,
+          thinkingLevels: provider.thinkingLevels,
         };
         const selectedModel = selectedModels[provider.id] ?? getInitialModel(provider, state.models);
         const isActive = activeProvider === provider.id;
         const isSelectable = state.models.length > 0;
         const showThinking = supportsThinking(provider);
         const showEffort = supportsEffort(provider);
-        const thinkingOpts = thinkingOptionsFor(provider);
+        const thinkingOpts = thinkingOptionsFor(provider, state.thinkingLevels ?? provider.thinkingLevels);
         const currentThinking = thinkingOpts.some((option) => option.value === thinking[provider.id])
           ? thinking[provider.id]
           : "off";
-        const effortOptions = effortOptionsFor(provider);
+        const effortOptions = effortOptionsFor(provider, selectedModel, state);
         const currentEffort = effortOptions.some((option) => option.value === effort[provider.id])
           ? effort[provider.id]
-          : "medium";
+          : defaultEffort(effortOptions);
         const test = testState[provider.id];
         const hasStatusMessage =
           state.error ||
@@ -406,7 +456,7 @@ export function ModelProviderProfiles({ providers }: { providers: ModelEndpoint[
                 ) : null}
                 <Button
                   type="button"
-                  onClick={() => void activateProvider(provider, selectedModel)}
+                  onClick={() => void activateProvider(provider, selectedModel, currentThinking, currentEffort)}
                   disabled={isActive || test?.status === "checking"}
                   className="h-8 min-w-24"
                 >

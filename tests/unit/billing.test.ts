@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 
 const tmpRoot = path.join(os.tmpdir(), `agenticos-billing-test-${Date.now()}`);
+const originalCwd = process.cwd();
 
 beforeAll(async () => {
   await fs.mkdir(path.join(tmpRoot, ".agenticos"), { recursive: true });
@@ -14,6 +15,9 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  const { closeDb } = await import("@/lib/db/client");
+  await closeDb();
+  process.chdir(originalCwd);
   await fs.rm(tmpRoot, { recursive: true, force: true });
 });
 

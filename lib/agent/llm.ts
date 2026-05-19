@@ -57,6 +57,7 @@ function systemPrompt(skill?: Skill, projectContext?: string, extra?: string) {
     skill ? `\n## Active Skill: ${skill.name}` : undefined,
     skill ? `Category: ${skill.category} | Output: ${skill.outputLocation}` : undefined,
     skill ? `Produce output exactly matched to this skill's purpose.` : undefined,
+    skill?.template ? `\n## Skill Operating Instructions\n${skill.template}` : undefined,
     projectContext ? `\n${projectContext}` : undefined,
     extra ? `\n${extra}` : undefined,
   ]
@@ -268,10 +269,7 @@ async function generateWithNvidia(request: GenerateWithModelRequest): Promise<Ge
     return response;
   }
 
-  let response = await callModel(request.model);
-  if (response.status === 404 && request.provider.model && request.provider.model !== request.model) {
-    response = await callModel(request.provider.model);
-  }
+  const response = await callModel(request.model);
 
   if (!response.ok) {
     const text = await response.text();

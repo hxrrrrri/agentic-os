@@ -109,6 +109,10 @@ function scoreSkill(promptTokens: Set<string>, promptLower: string, skill: Skill
     if (promptLower.includes(bare) || promptLower.includes(tool)) score += 0.15;
   }
 
+  if (skill.useTools && /\b(carousel|thumbnail|image|creative|artifact|gmail|email|calendar|drive)\b/i.test(promptLower)) {
+    score += 0.08;
+  }
+
   return Math.min(score, 1);
 }
 

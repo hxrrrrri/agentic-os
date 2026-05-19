@@ -57,6 +57,8 @@ export interface ModelEndpoint {
   provider: ModelProvider;
   model: string;
   models?: string[];
+  reasoningEfforts?: ReasoningEffort[];
+  thinkingLevels?: ThinkingLevel[];
   baseUrl?: string;
   mode: "cloud" | "local" | "cli";
   enabled: boolean;

@@ -2,7 +2,7 @@
 
 import type { Skill } from "@/types";
 
-const order = ["memory", "productivity", "research", "content", "custom"];
+const order = ["memory", "productivity", "research", "content", "business", "dev", "custom"];
 
 export function SkillGrid({ skills, onSelect }: { skills: Skill[]; onSelect: (skill: Skill) => void }) {
   const groups = skills.reduce<Record<string, Skill[]>>((acc, skill) => {

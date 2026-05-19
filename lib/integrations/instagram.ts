@@ -5,12 +5,14 @@ export interface InstagramStats {
   followers: number;
   follows: number;
   mediaCount: number;
+  error?: string;
 }
 
 interface IgResp {
   followers_count?: number;
   follows_count?: number;
   media_count?: number;
+  error?: { message?: string; code?: number; error_subcode?: number };
 }
 
 async function igCreds() {
@@ -25,14 +27,25 @@ export async function fetchInstagramStats(): Promise<InstagramStats | null> {
   try {
     const url = `https://graph.facebook.com/v19.0/${accountId}?fields=followers_count,follows_count,media_count&access_token=${token}`;
     const res = await fetch(url, { next: { revalidate: 600 } });
-    if (!res.ok) return null;
     const data = (await res.json()) as IgResp;
+    if (!res.ok || data.error) {
+      const msg = data.error?.message ?? `HTTP ${res.status}`;
+      const expired = data.error?.code === 190 || /expired|session/i.test(msg);
+      console.warn(`[instagram] fetchStats failed: ${msg}`);
+      return {
+        followers: 0,
+        follows: 0,
+        mediaCount: 0,
+        error: expired ? "token expired" : msg.slice(0, 80),
+      };
+    }
     return {
       followers: data.followers_count ?? 0,
       follows: data.follows_count ?? 0,
       mediaCount: data.media_count ?? 0,
     };
-  } catch {
+  } catch (e) {
+    console.warn(`[instagram] fetchStats threw:`, e);
     return null;
   }
 }

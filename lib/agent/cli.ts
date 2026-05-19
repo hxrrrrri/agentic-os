@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import type { GenerateWithModelRequest, GenerateWithModelResult } from "@/lib/agent/llm";
 import { THINKING_BUDGETS, THINKING_KEYWORDS } from "@/lib/agent/llm";
+import type { ReasoningEffort } from "@/types";
 
 const DEFAULT_TIMEOUT_MS = 180_000;
 
@@ -145,6 +146,10 @@ export async function generateWithClaudeCli(request: GenerateWithModelRequest): 
   if (safeModel && safeModel !== "Claude Code CLI") {
     args.push("--model", safeModel);
   }
+  const safeClaudeEffort = safeArg(request.reasoningEffort);
+  if (safeClaudeEffort) {
+    args.push("--effort", claudeEffort(safeClaudeEffort));
+  }
 
   const result = await runCli({
     command,
@@ -170,7 +175,10 @@ export async function generateWithClaudeCli(request: GenerateWithModelRequest): 
     };
 
     if (parsed.is_error) {
-      throw new Error(`Claude CLI error: ${parsed.error ?? "unknown"}`);
+      const detail = parsed.error
+        ?? result.stderr.trim().slice(-300)
+        ?? `exit ${result.exitCode}; raw: ${trimmed.slice(0, 200)}`;
+      throw new Error(`Claude CLI error: ${detail}`);
     }
 
     const content = (parsed.result ?? parsed.content ?? parsed.message?.content ?? "").trim();
@@ -341,6 +349,80 @@ function uniqueOrdered(values: string[]) {
   return Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)));
 }
 
+function parseEffortChoices(output: string): ReasoningEffort[] {
+  const match = output.match(/(?:--effort|--reasoning-effort)[^\n]*(?:choices:|\()([^)\n]+)/i);
+  const values = match?.[1]?.match(/"?(minimal|low|medium|high|xhigh)"?/gi) ?? [];
+  const efforts = uniqueOrdered(values.map((value) => value.toLowerCase()))
+    .filter((value): value is ReasoningEffort =>
+      value === "minimal" || value === "low" || value === "medium" || value === "high" || value === "xhigh",
+    );
+  return efforts.length ? efforts : ["low", "medium", "high", "xhigh"];
+}
+
+function parseClaudeHelpModels(output: string): string[] {
+  const modelLine = output.split(/\r?\n/).find((line) => line.includes("--model <model>")) ?? "";
+  const examples = Array.from(modelLine.matchAll(/'([^']+)'/g)).map((match) => match[1]);
+  return uniqueOrdered([
+    ...examples,
+    "claude-opus-4-7",
+    "claude-opus-4-1",
+    "claude-sonnet-4-6",
+    "claude-sonnet-4-5",
+    "claude-haiku-4-5",
+  ]);
+}
+
+export async function listClaudeCliModels(): Promise<string[]> {
+  const command = resolveCommand("CLAUDE_CLI_PATH", "claude");
+  const result = await runCli({ command, args: ["--help"], timeoutMs: 10_000 });
+  return parseClaudeHelpModels(result.stdout || result.stderr);
+}
+
+export async function listClaudeCliEfforts(): Promise<ReasoningEffort[]> {
+  const command = resolveCommand("CLAUDE_CLI_PATH", "claude");
+  const result = await runCli({ command, args: ["--help"], timeoutMs: 10_000 });
+  return parseEffortChoices(result.stdout || result.stderr);
+}
+
+interface CodexDebugModelsResponse {
+  models?: Array<{
+    slug?: string;
+    supported_reasoning_levels?: Array<{ effort?: string }>;
+  }>;
+}
+
+export interface CliModelCatalog {
+  models: string[];
+  reasoningEfforts?: ReasoningEffort[];
+  reasoningEffortsByModel?: Record<string, ReasoningEffort[]>;
+}
+
+export async function listCodexCliModelCatalog(): Promise<CliModelCatalog> {
+  const command = resolveCommand("CODEX_CLI_PATH", "codex");
+  const result = await runCli({ command, args: ["debug", "models"], timeoutMs: 15_000 });
+  const parsed = JSON.parse(result.stdout) as CodexDebugModelsResponse;
+  const byModel: Record<string, ReasoningEffort[]> = {};
+  const models: string[] = [];
+
+  for (const model of parsed.models ?? []) {
+    if (!model.slug) continue;
+    models.push(model.slug);
+    const efforts = (model.supported_reasoning_levels ?? [])
+      .map((level) => level.effort)
+      .filter((effort): effort is ReasoningEffort =>
+        effort === "minimal" || effort === "low" || effort === "medium" || effort === "high" || effort === "xhigh",
+      );
+    if (efforts.length) byModel[model.slug] = uniqueOrdered(efforts) as ReasoningEffort[];
+  }
+
+  const reasoningEfforts = uniqueOrdered(Object.values(byModel).flat()) as ReasoningEffort[];
+  return {
+    models: uniqueOrdered(models),
+    reasoningEfforts: reasoningEfforts.length ? reasoningEfforts : ["low", "medium", "high", "xhigh"],
+    reasoningEffortsByModel: Object.keys(byModel).length ? byModel : undefined,
+  };
+}
+
 function parseCopilotHelpModels(output: string): string[] {
   const lines = output.split(/\r?\n/);
   const models: string[] = [];
@@ -367,11 +449,21 @@ function copilotEffort(effort: string): string {
   return effort === "minimal" ? "low" : effort;
 }
 
+function claudeEffort(effort: string): string {
+  return effort === "minimal" ? "low" : effort;
+}
+
 export async function listCopilotCliModels(): Promise<string[]> {
   const command = resolveCommand("COPILOT_CLI_PATH", "copilot");
   const result = await runCli({ command, args: ["help", "config"], timeoutMs: 15_000 });
   const models = parseCopilotHelpModels(result.stdout);
   return models.length ? models : COPILOT_FALLBACK_MODELS;
+}
+
+export async function listCopilotCliEfforts(): Promise<ReasoningEffort[]> {
+  const command = resolveCommand("COPILOT_CLI_PATH", "copilot");
+  const result = await runCli({ command, args: ["--help"], timeoutMs: 15_000 });
+  return parseEffortChoices(result.stdout || result.stderr);
 }
 
 export async function generateWithCopilotCli(request: GenerateWithModelRequest): Promise<GenerateWithModelResult> {

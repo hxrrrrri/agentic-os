@@ -107,3 +107,100 @@ export async function listRecentInbox(maxResults = 15): Promise<InboxItem[]> {
     receivedAt: d.internalDate ? new Date(Number(d.internalDate)).toISOString() : "",
   }));
 }
+
+// ---- search + full body for tool-use loop ------------------------------------
+
+export interface GmailMessageFull extends InboxItem {
+  to: string;
+  threadId: string;
+  bodyText: string;
+  labels: string[];
+}
+
+interface GmailMessagePart {
+  mimeType?: string;
+  body?: { data?: string };
+  parts?: GmailMessagePart[];
+}
+
+interface GmailMessageFullResp {
+  id: string;
+  threadId: string;
+  labelIds?: string[];
+  snippet?: string;
+  internalDate?: string;
+  payload?: GmailMessagePart & { headers?: Array<{ name: string; value: string }> };
+}
+
+function decodeBase64Url(data?: string): string {
+  if (!data) return "";
+  try {
+    return Buffer.from(data.replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf8");
+  } catch {
+    return "";
+  }
+}
+
+function extractBodyText(part?: GmailMessagePart): string {
+  if (!part) return "";
+  if (part.mimeType?.startsWith("text/plain") && part.body?.data) {
+    return decodeBase64Url(part.body.data);
+  }
+  if (part.parts?.length) {
+    const plain = part.parts.find((p) => p.mimeType === "text/plain");
+    if (plain?.body?.data) return decodeBase64Url(plain.body.data);
+    for (const child of part.parts) {
+      const found = extractBodyText(child);
+      if (found) return found;
+    }
+  }
+  if (part.body?.data) return decodeBase64Url(part.body.data);
+  return "";
+}
+
+/** Search Gmail by query (e.g. "is:unread newer_than:1d"). Returns full body
+ *  text capped at 8k chars per message. Returns null when Gmail is not
+ *  configured. */
+export async function searchGmail(query: string, maxResults = 15): Promise<GmailMessageFull[] | null> {
+  try {
+    const listing = await gmail<GmailListResponse>(
+      `/users/me/messages?q=${encodeURIComponent(query)}&maxResults=${Math.min(50, Math.max(1, maxResults))}`,
+    );
+    if (!listing.messages?.length) return [];
+    const details = await Promise.all(
+      listing.messages.map((m) => gmail<GmailMessageFullResp>(`/users/me/messages/${m.id}?format=full`)),
+    );
+    return details.map((d) => ({
+      id: d.id,
+      threadId: d.threadId,
+      from: d.payload?.headers?.find((h) => h.name.toLowerCase() === "from")?.value ?? "",
+      to: d.payload?.headers?.find((h) => h.name.toLowerCase() === "to")?.value ?? "",
+      subject: d.payload?.headers?.find((h) => h.name.toLowerCase() === "subject")?.value ?? "",
+      snippet: d.snippet ?? "",
+      receivedAt: d.internalDate ? new Date(Number(d.internalDate)).toISOString() : "",
+      bodyText: extractBodyText(d.payload).slice(0, 8000),
+      labels: d.labelIds ?? [],
+    }));
+  } catch {
+    return null;
+  }
+}
+
+export async function getGmailMessageFull(id: string): Promise<GmailMessageFull | null> {
+  try {
+    const d = await gmail<GmailMessageFullResp>(`/users/me/messages/${id}?format=full`);
+    return {
+      id: d.id,
+      threadId: d.threadId,
+      from: d.payload?.headers?.find((h) => h.name.toLowerCase() === "from")?.value ?? "",
+      to: d.payload?.headers?.find((h) => h.name.toLowerCase() === "to")?.value ?? "",
+      subject: d.payload?.headers?.find((h) => h.name.toLowerCase() === "subject")?.value ?? "",
+      snippet: d.snippet ?? "",
+      receivedAt: d.internalDate ? new Date(Number(d.internalDate)).toISOString() : "",
+      bodyText: extractBodyText(d.payload).slice(0, 20_000),
+      labels: d.labelIds ?? [],
+    };
+  } catch {
+    return null;
+  }
+}

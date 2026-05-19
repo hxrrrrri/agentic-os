@@ -176,11 +176,11 @@ function deriveSocialTiles(
     },
     {
       label: "Instagram",
-      value: ig ? compact(ig.followers) : "-",
-      delta: ig ? "live" : "not connected",
+      value: ig && !ig.error ? compact(ig.followers) : "-",
+      delta: ig?.error ? ig.error : ig ? "live" : "not connected",
       deltaDir: "flat",
       brand: "instagram",
-      live: Boolean(ig),
+      live: Boolean(ig) && !ig?.error,
     },
     {
       label: "TikTok",

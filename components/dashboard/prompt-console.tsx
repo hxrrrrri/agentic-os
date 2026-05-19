@@ -11,6 +11,22 @@ function getInitialModel(provider: ModelEndpoint) {
   return provider.models?.includes(provider.model) ? provider.model : provider.models?.[0] ?? provider.model;
 }
 
+const THINKING_PROVIDERS = new Set(["anthropic", "gemini-cli", "gemini", "ollama"]);
+const EFFORT_PROVIDERS = new Set(["claude-code", "codex", "copilot-cli", "openai", "grok", "nvidia", "openrouter"]);
+
+function supportsThinking(provider: ModelEndpoint) {
+  return THINKING_PROVIDERS.has(provider.id) || THINKING_PROVIDERS.has(provider.provider);
+}
+
+function supportsEffort(provider: ModelEndpoint) {
+  return EFFORT_PROVIDERS.has(provider.id) || EFFORT_PROVIDERS.has(provider.provider);
+}
+
+function defaultEffort(provider: ModelEndpoint): ReasoningEffort {
+  if (provider.reasoningEfforts?.includes("medium")) return "medium";
+  return provider.reasoningEfforts?.[0] ?? "medium";
+}
+
 export function PromptConsole({ skills, providers }: { skills: Skill[]; providers: ModelEndpoint[] }) {
   const router = useRouter();
   const params = useSearchParams();
@@ -57,8 +73,8 @@ export function PromptConsole({ skills, providers }: { skills: Skill[]; provider
             ? {
                 providerId: activeProvider.id,
                 model,
-                thinking: thinkingMap[activeProvider.id],
-                reasoningEffort: effortMap[activeProvider.id],
+                thinking: supportsThinking(activeProvider) ? thinkingMap[activeProvider.id] ?? "off" : undefined,
+                reasoningEffort: supportsEffort(activeProvider) ? effortMap[activeProvider.id] ?? defaultEffort(activeProvider) : undefined,
               }
             : undefined;
         const response = await fetch("/api/runs", {

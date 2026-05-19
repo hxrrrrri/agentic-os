@@ -10,12 +10,12 @@ export const dynamic = "force-dynamic";
 export default async function RunsPage() {
   const runs = await listRuns();
   return (
-    <div className="space-y-4">
+    <div className="page-enter space-y-4">
       <div>
         <div className="terminal-label">Run Ledger</div>
         <h1 className="mt-2 text-3xl font-black tracking-[0.12em]">RUNS</h1>
       </div>
-      <Card>
+      <Card className="card-lift">
         <CardHeader>
           <CardTitle>All Previous Runs</CardTitle>
           <div className="text-xs text-[#6f6a61]">Filter-ready ledger by status, category, and skill</div>

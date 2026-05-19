@@ -63,13 +63,13 @@ function windowsCommandLine(command: string, args: string[]) {
   return [quoteWindowsArg(command), ...args.map(quoteWindowsArg)].join(" ");
 }
 
-function spawnTerminal(adapter: CliAdapter): IPty {
+function spawnTerminal(adapter: CliAdapter, size?: { cols?: number; rows?: number }): IPty {
   const command = resolveCommand(adapter);
   const env = TERMINAL_ENV as Record<string, string>;
   const common = {
     name: "xterm-256color",
-    cols: 120,
-    rows: 24,
+    cols: size?.cols ?? 120,
+    rows: size?.rows ?? 32,
     cwd: agenticosConfig.vaultPath,
     env,
   };
@@ -77,26 +77,31 @@ function spawnTerminal(adapter: CliAdapter): IPty {
   if (adapter.id === "shell") {
     return spawnPty(shellCommand(), process.platform === "win32" ? [] : adapter.args, {
       ...common,
-      useConpty: false,
+      useConpty: process.platform === "win32",
     });
   }
 
   if (process.platform === "win32") {
-    // npm and Volta CLIs often resolve to .cmd shims. Launching through cmd.exe gives them a
-    // console-backed PTY without the child_process pipe behavior that broke interactive sessions.
+    // npm and Volta CLIs often resolve to .cmd shims. Launch through cmd.exe
+    // inside ConPTY so full-screen TUIs render like Windows Terminal.
     return spawnPty(shellCommand(), ["/d", "/s", "/c", windowsCommandLine(command, adapter.args)], {
       ...common,
-      useConpty: false,
+      useConpty: true,
     });
   }
 
   return spawnPty(command, adapter.args, common);
 }
 
-function createPtySession(adapter: CliAdapter, requestedId = adapter.id, requestedLabel = adapter.label): SessionInfo {
+function createPtySession(
+  adapter: CliAdapter,
+  requestedId = adapter.id,
+  requestedLabel = adapter.label,
+  size?: { cols?: number; rows?: number },
+): SessionInfo {
   const id = createId("term");
   const startedAt = new Date().toISOString();
-  const proc = spawnTerminal(adapter);
+  const proc = spawnTerminal(adapter, size);
 
   const session: LiveSession = {
     id,
@@ -116,21 +121,20 @@ function createPtySession(adapter: CliAdapter, requestedId = adapter.id, request
     session.alive = false;
     const code = exitCode ?? 0;
     session.exitSubs.forEach((fn) => fn(code));
-    sessions.delete(id);
   });
 
   sessions.set(id, session);
   return { id, cliId: requestedId, cliLabel: requestedLabel, alive: true, startedAt, historySize: 0 };
 }
 
-function createShellFallback(cliId: string, label: string, message: string): SessionInfo {
+function createShellFallback(cliId: string, label: string, message: string, size?: { cols?: number; rows?: number }): SessionInfo {
   const shellAdapter: CliAdapter = {
     id: "shell",
     label: "Shell",
     command: shellCommand(),
     args: process.platform === "win32" ? [] : ["--norc"],
   };
-  const info = createPtySession(shellAdapter, cliId, label);
+  const info = createPtySession(shellAdapter, cliId, label, size);
   const live = sessions.get(info.id);
   if (live) {
     pushChunk(
@@ -141,15 +145,9 @@ function createShellFallback(cliId: string, label: string, message: string): Ses
   return info;
 }
 
-export async function createSession(cliId: string): Promise<SessionInfo> {
+export async function createSession(cliId: string, size?: { cols?: number; rows?: number }): Promise<SessionInfo> {
   const adapter = getAdapter(cliId);
   if (!adapter) throw new Error(`Unknown CLI adapter: ${cliId}`);
-
-  for (const session of Array.from(sessions.values())) {
-    if (session.cliId === adapter.id || session.cliId === cliId) {
-      killSession(session.id);
-    }
-  }
 
   const available = await isCommandAvailable(adapter);
   if (!available) {
@@ -162,16 +160,18 @@ export async function createSession(cliId: string): Promise<SessionInfo> {
         `Install it or set ${envName}.`,
         adapter.installHint ? `Suggested install: ${adapter.installHint}` : undefined,
       ].filter(Boolean).join("\r\n"),
+      size,
     );
   }
 
   try {
-    return createPtySession(adapter);
+    return createPtySession(adapter, adapter.id, adapter.label, size);
   } catch (error) {
     return createShellFallback(
       adapter.id,
       adapter.label,
       `Could not start ${adapter.label}: ${error instanceof Error ? error.message : "unknown error"}`,
+      size,
     );
   }
 }

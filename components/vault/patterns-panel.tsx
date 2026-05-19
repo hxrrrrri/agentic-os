@@ -25,11 +25,11 @@ export function PatternsPanel({ initial }: { initial: PatternEntry[] }) {
   const maxCount = Math.max(...patterns.map((p) => p.dayCount), 1);
 
   return (
-    <div className="terminal-panel bg-[#121411] p-3">
-      <div className="mb-3 flex items-center justify-between">
+    <div className="terminal-panel bg-[#121411] px-3 py-2">
+      <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="terminal-label text-[#f4f1e8]">Patterns</span>
-          <span className="text-[0.55rem] uppercase tracking-[0.14em] text-[#6f6a61]">30-day daily notes</span>
+          <span className="text-[0.55rem] uppercase tracking-[0.14em] text-[#6f6a61]">30d</span>
         </div>
         <button
           type="button"
@@ -41,14 +41,12 @@ export function PatternsPanel({ initial }: { initial: PatternEntry[] }) {
         </button>
       </div>
 
-      {msg ? <div className="mb-2 text-[0.62rem] text-[#a8a29a]">{msg}</div> : null}
+      {msg ? <div className="mt-1.5 text-[0.62rem] text-[#a8a29a]">{msg}</div> : null}
 
-      {patterns.length === 0 ? (
-        <div className="text-[0.7rem] text-[#6f6a61]">
-          No patterns yet. Click &ldquo;Spot patterns&rdquo; after writing a few daily notes.
-        </div>
-      ) : (
-        <div className="space-y-[5px]">
+      {/* When empty and no scan attempt, the button itself is the call-to-action —
+          a separate empty-state sentence wastes a row. */}
+      {patterns.length > 0 ? (
+        <div className="mt-2 space-y-[5px]">
           {patterns.slice(0, 12).map((p) => {
             const barPct = Math.max(6, Math.round((p.dayCount / maxCount) * 100));
             return (
@@ -65,7 +63,7 @@ export function PatternsPanel({ initial }: { initial: PatternEntry[] }) {
             );
           })}
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

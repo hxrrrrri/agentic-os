@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 
 const tmpRoot = path.join(os.tmpdir(), `agenticos-secrets-test-${Date.now()}`);
+const originalCwd = process.cwd();
 
 beforeAll(async () => {
   await fs.mkdir(path.join(tmpRoot, ".agenticos"), { recursive: true });
@@ -12,6 +13,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  process.chdir(originalCwd);
   await fs.rm(tmpRoot, { recursive: true, force: true });
   delete process.env.AGENTICOS_SECRETS_KEY;
 });

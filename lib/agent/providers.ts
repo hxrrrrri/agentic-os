@@ -2,7 +2,7 @@ import type { ModelEndpoint, ModelProvider } from "@/types";
 
 // CLI model lists below are derived from real CLI output:
 //   - claude-code:  `claude --model <invalid>` error + aliases (opus/sonnet/haiku)
-//   - codex:        `codex exec --model <invalid>` error + `~/.codex/config.toml`
+//   - codex:        `codex debug models`
 //   - copilot-cli:  `copilot help config` model section (authoritative)
 //   - gemini-cli:   official model catalog
 // `dynamicModels: true` lets `/api/model-providers/[id]/models` refresh at runtime.
@@ -11,7 +11,7 @@ export const modelEndpoints: ModelEndpoint[] = [
   {
     id: "claude-code",
     provider: "claude-code",
-    model: "claude-opus-4-7",
+    model: "claude-sonnet-4-6",
     models: [
       "claude-opus-4-7",
       "claude-opus-4-1",
@@ -25,11 +25,12 @@ export const modelEndpoints: ModelEndpoint[] = [
     mode: "cli",
     enabled: true,
     dynamicModels: true,
+    reasoningEfforts: ["low", "medium", "high", "xhigh"],
   },
   {
     id: "codex",
     provider: "codex",
-    model: "gpt-5.5",
+    model: "gpt-5.2",
     models: [
       "gpt-5.5",
       "gpt-5.5-codex",
@@ -47,6 +48,7 @@ export const modelEndpoints: ModelEndpoint[] = [
     mode: "cli",
     enabled: true,
     dynamicModels: true,
+    reasoningEfforts: ["low", "medium", "high", "xhigh"],
   },
   {
     id: "copilot-cli",
@@ -72,6 +74,7 @@ export const modelEndpoints: ModelEndpoint[] = [
     mode: "cli",
     enabled: true,
     dynamicModels: true,
+    reasoningEfforts: ["low", "medium", "high", "xhigh"],
   },
   {
     id: "ollama",
@@ -91,6 +94,7 @@ export const modelEndpoints: ModelEndpoint[] = [
     mode: "local",
     enabled: true,
     dynamicModels: true,
+    thinkingLevels: ["off", "think", "think-hard"],
   },
   {
     id: "nvidia",
@@ -101,6 +105,7 @@ export const modelEndpoints: ModelEndpoint[] = [
     enabled: false,
     dynamicModels: true,
     requiresApiKey: true,
+    reasoningEfforts: ["minimal", "low", "medium", "high"],
   },
   {
     id: "anthropic",
@@ -117,11 +122,12 @@ export const modelEndpoints: ModelEndpoint[] = [
     enabled: false,
     requiresApiKey: true,
     dynamicModels: true,
+    thinkingLevels: ["off", "think", "think-hard", "think-harder"],
   },
   {
     id: "openai",
     provider: "openai",
-    model: "gpt-5.5",
+    model: "gpt-5.2",
     models: [
       "gpt-5.5",
       "gpt-5.5-mini",
@@ -138,6 +144,7 @@ export const modelEndpoints: ModelEndpoint[] = [
     enabled: false,
     requiresApiKey: true,
     dynamicModels: true,
+    reasoningEfforts: ["minimal", "low", "medium", "high"],
   },
   {
     id: "openrouter",
@@ -163,6 +170,7 @@ export const modelEndpoints: ModelEndpoint[] = [
     enabled: false,
     requiresApiKey: true,
     dynamicModels: true,
+    reasoningEfforts: ["minimal", "low", "medium", "high"],
   },
   {
     id: "gemini-cli",
@@ -178,6 +186,7 @@ export const modelEndpoints: ModelEndpoint[] = [
     mode: "cli",
     enabled: true,
     dynamicModels: true,
+    thinkingLevels: ["off", "think", "think-hard"],
   },
   {
     id: "gemini",
@@ -193,8 +202,10 @@ export const modelEndpoints: ModelEndpoint[] = [
     mode: "cloud",
     enabled: false,
     requiresApiKey: true,
+    dynamicModels: true,
+    thinkingLevels: ["off", "think", "think-hard"],
   },
-  { id: "grok", provider: "grok", model: "grok-4", models: ["grok-4", "grok-4-fast", "grok-3", "grok-3-mini"], mode: "cloud", enabled: false, requiresApiKey: true },
+  { id: "grok", provider: "grok", model: "grok-4", models: ["grok-4", "grok-4-fast", "grok-3", "grok-3-mini"], mode: "cloud", enabled: false, requiresApiKey: true, dynamicModels: true, reasoningEfforts: ["minimal", "low", "medium", "high"] },
   { id: "custom", provider: "custom", model: "custom-endpoint", mode: "cloud", enabled: false },
 ];
 

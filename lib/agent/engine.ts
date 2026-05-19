@@ -9,6 +9,8 @@ import { detectRisk, requiresApproval } from "@/lib/permissions/policy";
 import { computeCost } from "@/lib/billing/pricing";
 import { runSwarm } from "@/lib/agent/swarm";
 import { runToolLoop } from "@/lib/agent/tool-loop";
+import { buildIntentArtifactCalls } from "@/lib/agent/artifact-intents";
+import { dispatchTool } from "@/lib/tools/dispatcher";
 import {
   addAuditLog,
   insertApproval,
@@ -701,6 +703,31 @@ async function runWorkflowSteps(run: Run, plan: AgentPlan, request: RunRequest):
     },
   );
   flushOutput();
+
+  // If the user clearly asked for a carousel/thumbnail/image but the tool-loop
+  // did not fire (no skill / non-useTools skill), render the artifact now using
+  // the generated text as slide source. Keeps prompt → artifact contract even
+  // when auto-routing misses or the user picks the wrong skill.
+  const intentArtifacts: GeneratedArtifact[] = outcome.artifacts ? [...outcome.artifacts] : [];
+  const intentCalls = buildIntentArtifactCalls(prompt, outcome.output, intentArtifacts);
+  if (intentCalls.length) {
+    const context = {
+      runId: run.id,
+      skillId: skill?.id,
+      permissionLevel: modeToPermission(skill?.executionMode ?? "dry-run"),
+      dryRun: request.dryRun ?? true,
+      artifactSink: intentArtifacts,
+    };
+    for (const call of intentCalls) {
+      try {
+        await dispatchTool({ name: call.name, args: call.args }, context);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "intent render failed";
+        emitRunEvent({ runId: run.id, type: "run.log", payload: { level: "warn", message: `${call.name} skipped: ${message}` } });
+      }
+    }
+    outcome.artifacts = intentArtifacts;
+  }
   const outputFolder = skill?.outputLocation ?? "/vault/runs";
   const artifact = await writeVaultMarkdown(outputFolder, run.title, outcome.output, {
     frontmatter: {

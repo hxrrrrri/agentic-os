@@ -52,7 +52,7 @@ const seeds: SkillSeed[] = [
   { id: "yt-hooks", name: "YT Hooks", category: "content" },
   { id: "content-cascade", name: "Content Cascade", category: "content", output: "/vault/content" },
   { id: "short-form", name: "Short-form", category: "content" },
-  { id: "carousel", name: "Carousel", category: "content" },
+  { id: "carousel", name: "Carousel", category: "content", output: "/vault/content", useTools: true, tools: ["render_carousel", "vault_write_note"] },
   { id: "newsletter", name: "Newsletter", category: "content" },
   { id: "linkedin-post", name: "LinkedIn Post", category: "content", risk: "medium", mode: "approval" },
   { id: "blog-draft", name: "Blog Draft", category: "content" },

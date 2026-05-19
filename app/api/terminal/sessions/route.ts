@@ -11,12 +11,16 @@ export async function GET() {
   return NextResponse.json({ sessions: listSessions(), adapters });
 }
 
-const CreateSchema = z.object({ cliId: z.string().min(1) });
+const CreateSchema = z.object({
+  cliId: z.string().min(1),
+  cols: z.number().int().min(20).max(500).optional(),
+  rows: z.number().int().min(5).max(200).optional(),
+});
 
 export async function POST(request: Request) {
   try {
     const body = CreateSchema.parse(await request.json());
-    const session = await createSession(body.cliId);
+    const session = await createSession(body.cliId, { cols: body.cols, rows: body.rows });
     return NextResponse.json({ session }, { status: 201 });
   } catch (err) {
     return NextResponse.json(

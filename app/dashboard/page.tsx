@@ -30,36 +30,43 @@ export default async function DashboardPage() {
   const last30Count = activity.reduce((sum, point) => sum + point.daily, 0);
 
   return (
-    <div className="space-y-3">
+    <div className="page-enter space-y-4">
       <div className="grid gap-3 md:grid-cols-3">
-        <MetricCard
-          label="5-hour window"
-          primary={`${compact(metrics.fiveHour.used)} / ${compact(metrics.fiveHour.max)}`}
-          secondary={`${metrics.fiveHour.sessions} sessions`}
-          value={metrics.fiveHour.used}
-          max={metrics.fiveHour.max}
-        />
-        <MetricCard
-          label="Weekly window"
-          primary={`${compact(metrics.weekly.used)}m / ${compact(metrics.weekly.max)}m`}
-          secondary={`${metrics.weekly.sessions} sessions`}
-          value={metrics.weekly.used}
-          max={metrics.weekly.max}
-        />
-        <MetricCard
-          label="Routines - max"
-          primary={`${metrics.routines.completed} / ${metrics.routines.max}`}
-          secondary={`${metrics.routines.value} today`}
-          value={metrics.routines.completed}
-          max={metrics.routines.max}
-        />
+        <div className="stagger-item">
+          <MetricCard
+            label="5-hour window"
+            primary={`${compact(metrics.fiveHour.used)} / ${compact(metrics.fiveHour.max)}`}
+            secondary={`${metrics.fiveHour.sessions} sessions`}
+            value={metrics.fiveHour.used}
+            max={metrics.fiveHour.max}
+          />
+        </div>
+        <div className="stagger-item">
+          <MetricCard
+            label="Weekly window"
+            primary={`${compact(metrics.weekly.used)}m / ${compact(metrics.weekly.max)}m`}
+            secondary={`${metrics.weekly.sessions} sessions`}
+            value={metrics.weekly.used}
+            max={metrics.weekly.max}
+          />
+        </div>
+        <div className="stagger-item">
+          <MetricCard
+            label="Routines - max"
+            primary={`${metrics.routines.completed} / ${metrics.routines.max}`}
+            secondary={`${metrics.routines.value} today`}
+            value={metrics.routines.completed}
+            max={metrics.routines.max}
+          />
+        </div>
       </div>
 
-      <Card className="chart-grid p-2.5">
+      <Card className="chart-grid card-lift p-3">
         <CardHeader>
           <CardTitle>Agentic OS - Cumulative Activity - 30D</CardTitle>
-          <div className="text-right text-[0.58rem] uppercase tracking-[0.12em] text-[#a8a29a]">
-            <span className="text-[#e86f3a]">+ {totalRuns} total</span> - {last30Count} last 30d
+          <div className="text-right text-[0.66rem] uppercase tracking-[0.12em] text-[#a8a29a]">
+            <span className="text-[#e86f3a] font-bold">+ {totalRuns} total</span>
+            <span className="ml-2 text-[#6f6a61]">{last30Count} last 30d</span>
           </div>
         </CardHeader>
         <ActivityChart data={activity} />
@@ -71,7 +78,7 @@ export default async function DashboardPage() {
 
       <IntegrationsBar integrations={integrations} />
 
-      <div className="grid gap-4 pt-5 xl:grid-cols-[1fr_274px]">
+      <div className="grid gap-4 pt-5 xl:grid-cols-[1fr_286px]">
         <div className="min-w-0 space-y-8">
           <Suspense fallback={<div className="terminal-panel p-4 text-sm text-[#a8a29a]">Loading console...</div>}>
             <PromptConsole skills={skills} providers={providers} />

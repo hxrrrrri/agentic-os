@@ -30,6 +30,14 @@ export async function GET(
         chunks: getSessionHistory(sessionId).map((chunk) => Buffer.from(chunk, "utf8").toString("base64")),
       });
 
+      if (!session.alive) {
+        send("exit", { code: 0 });
+        try {
+          controller.close();
+        } catch {}
+        return;
+      }
+
       cleanup = subscribeSession(
         sessionId,
         // Base64-encode raw bytes so ANSI escape sequences survive JSON transport

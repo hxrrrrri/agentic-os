@@ -44,6 +44,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
             cost: run.costEstimate,
             tokens: run.tokensEstimate,
             artifacts: run.createdArtifacts,
+            structuredArtifacts: run.artifacts ?? [],
           });
           controller.close();
           return;

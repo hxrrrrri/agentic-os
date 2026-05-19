@@ -45,8 +45,8 @@ interface PwModule {
 function loadPlaywright(): PwModule | null {
   if (process.env.AGENTICOS_LOCAL_BROWSER !== "1") return null;
   try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    return require("playwright") as PwModule;
+    const runtimeRequire = eval("require") as NodeRequire;
+    return runtimeRequire("playwright") as PwModule;
   } catch {
     return null;
   }

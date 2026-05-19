@@ -44,6 +44,7 @@ describe("skills/router", () => {
     const out = await routeSkill("carousel of 5 tips for SaaS founders");
     expect(out.skill).toBeDefined();
     expect(out.skill?.id).toMatch(/carousel/);
+    expect(out.skill?.useTools).toBe(true);
     expect(out.tokensUsed).toBe(0);
   });
 

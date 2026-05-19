@@ -33,41 +33,40 @@ export function GraphStatsCard({ stats: initial }: { stats: GraphStats }) {
   ];
 
   return (
-    <div className="terminal-panel bg-[#121411] p-3">
-      <div className="mb-2 terminal-label text-[#f4f1e8]">Graph Index</div>
+    <div className="terminal-panel bg-[#121411] px-3 py-2">
+      <div className="mb-1.5 flex items-center justify-between">
+        <div className="terminal-label text-[#f4f1e8]">Graph Index</div>
+        <button
+          type="button"
+          onClick={reindex}
+          disabled={isPending}
+          className="text-[0.6rem] uppercase tracking-[0.14em] text-[#6f6a61] transition hover:text-[#e86f3a] disabled:opacity-50 disabled:cursor-wait"
+        >
+          {isPending ? "Indexing…" : "Re-index"}
+        </button>
+      </div>
 
-      <div className="grid grid-cols-3 gap-2 mb-3">
+      <div className="grid grid-cols-3 gap-1.5">
         {items.map((item) => (
-          <div key={item.label} className="border border-[#2a302c] bg-[#080a09] p-2 text-center">
-            <div className="text-xl font-black text-[#e86f3a]">{item.value}</div>
-            <div className="mt-1 text-[0.55rem] uppercase tracking-[0.14em] text-[#6f6a61]">{item.label}</div>
+          <div key={item.label} className="border border-[#2a302c] bg-[#080a09] px-1.5 py-1 text-center">
+            <div className="text-base font-black leading-none text-[#e86f3a]">{item.value}</div>
+            <div className="mt-1 text-[0.5rem] uppercase tracking-[0.14em] text-[#6f6a61]">{item.label}</div>
           </div>
         ))}
       </div>
 
       {stats.mostLinked ? (
-        <div className="border border-[#2a302c] bg-[#080a09] p-2 text-xs">
-          <div className="terminal-label mb-1">Most linked</div>
-          <div className="truncate font-bold text-[#f4f1e8]">{stats.mostLinked.title}</div>
-          <div className="mt-1 text-[#6f6a61]">
+        <div className="mt-2 border border-[#2a302c] bg-[#080a09] px-2 py-1.5 text-[0.66rem]">
+          <div className="text-[0.5rem] uppercase tracking-[0.14em] text-[#6f6a61]">Most linked</div>
+          <div className="mt-0.5 truncate font-bold text-[#f4f1e8]">{stats.mostLinked.title}</div>
+          <div className="truncate text-[0.6rem] text-[#6f6a61]">
             {stats.mostLinked.path}
             <span className="ml-2 text-[#e86f3a]">{stats.mostLinked.count} backlinks</span>
           </div>
         </div>
-      ) : (
-        <div className="text-xs text-[#6f6a61]">No notes indexed yet.</div>
-      )}
+      ) : null}
 
-      {msg ? <div className="mt-2 text-[0.62rem] text-[#79a875]">{msg}</div> : null}
-
-      <button
-        type="button"
-        onClick={reindex}
-        disabled={isPending}
-        className="mt-2 w-full rounded-[3px] border border-[#2a302c] bg-[#10120f] px-3 py-2 text-[0.62rem] font-bold uppercase tracking-[0.14em] text-[#a8a29a] transition hover:border-[#e86f3a] hover:text-[#e86f3a] disabled:opacity-50 disabled:cursor-wait"
-      >
-        {isPending ? "Indexing…" : "Re-index vault graph"}
-      </button>
+      {msg ? <div className="mt-1.5 text-[0.6rem] text-[#79a875]">{msg}</div> : null}
     </div>
   );
 }

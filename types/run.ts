@@ -56,4 +56,8 @@ export interface Run {
   errorDetail?: string;
   finalOutput?: string;
   createdArtifacts: string[];
+  /** Structured artifact records (carousels, images, etc.). Backed by the
+   *  `artifacts_json` column. Optional so legacy rows without the column
+   *  still parse cleanly. */
+  artifacts?: import("./artifact").GeneratedArtifact[];
 }

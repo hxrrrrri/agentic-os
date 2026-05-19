@@ -28,7 +28,7 @@ export default async function SettingsPage() {
     effectiveMode === "real" ? "green" : agenticosConfig.mode === "real" ? "yellow" : "gray";
 
   return (
-    <div className="space-y-4">
+    <div className="page-enter space-y-4">
       <div>
         <div className="terminal-label">Control Plane</div>
         <h1 className="mt-2 text-3xl font-black tracking-[0.12em]">SETTINGS</h1>
