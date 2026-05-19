@@ -5,6 +5,9 @@ type SkillSeed = Omit<Skill, "description" | "template" | "requiredIntegrations"
   risk?: Skill["riskLevel"];
   mode?: Skill["executionMode"];
   output?: string;
+  useTools?: boolean;
+  tools?: string[];
+  variants?: number;
 };
 
 const categoryOutput: Record<SkillCategory, string> = {
@@ -79,6 +82,104 @@ const seeds: SkillSeed[] = [
   { id: "plan-tomorrow", name: "Plan Tomorrow", category: "productivity", output: "/vault/daily" },
   { id: "inbox-brief", name: "Inbox Brief", category: "productivity", integrations: ["gmail"] },
   { id: "pull-metrics", name: "Pull Metrics", category: "research", integrations: ["youtube"], risk: "low", mode: "dry-run" },
+
+  // ───────── Visual / multi-modal skills (tool-use enabled) ─────────
+  {
+    id: "carousel-design",
+    name: "Carousel Design",
+    category: "content",
+    output: "/vault/content",
+    useTools: true,
+    tools: ["render_carousel", "vault_write_note"],
+  },
+  {
+    id: "brand-thumbnail",
+    name: "Brand Thumbnail",
+    category: "content",
+    output: "/vault/content",
+    useTools: true,
+    tools: ["render_thumbnail", "generate_image", "vault_write_note"],
+  },
+  {
+    id: "ai-image",
+    name: "AI Image",
+    category: "content",
+    output: "/vault/content",
+    useTools: true,
+    tools: ["generate_image", "vault_write_note"],
+  },
+  {
+    id: "multi-platform-repurpose",
+    name: "Multi-Platform Repurpose",
+    category: "content",
+    output: "/vault/content",
+    useTools: true,
+    tools: ["render_carousel", "render_thumbnail", "vault_write_note"],
+  },
+  {
+    id: "variant-generator",
+    name: "Variant Generator",
+    category: "content",
+    output: "/vault/content",
+    useTools: true,
+    tools: ["render_carousel", "render_thumbnail", "generate_image", "vault_write_note"],
+    variants: 3,
+  },
+  {
+    id: "performance-feedback",
+    name: "Performance Feedback",
+    category: "research",
+    output: "/vault/insights",
+    useTools: true,
+    tools: ["youtube_recent", "instagram_stats", "tiktok_stats", "vault_write_note"],
+  },
+
+  // ───────── Real Gmail / Drive / Calendar (read) skills ─────────
+  {
+    id: "inbox-digest",
+    name: "Inbox Digest",
+    category: "productivity",
+    integrations: ["gmail"],
+    output: "/vault/daily",
+    useTools: true,
+    tools: ["gmail_search", "vault_write_note"],
+  },
+  {
+    id: "gmail-summary",
+    name: "Gmail Summary",
+    category: "productivity",
+    integrations: ["gmail"],
+    output: "/vault/daily",
+    useTools: true,
+    tools: ["gmail_search", "vault_write_note"],
+  },
+  {
+    id: "calendar-brief",
+    name: "Calendar Brief",
+    category: "productivity",
+    integrations: ["google-calendar"],
+    output: "/vault/daily",
+    useTools: true,
+    tools: ["calendar_list", "vault_write_note"],
+  },
+  {
+    id: "drive-digest",
+    name: "Drive Digest",
+    category: "productivity",
+    integrations: ["google-drive"],
+    output: "/vault/daily",
+    useTools: true,
+    tools: ["drive_list", "vault_write_note"],
+  },
+  {
+    id: "research-with-tools",
+    name: "Tool-Use Research",
+    category: "research",
+    integrations: ["firecrawl"],
+    output: "/vault/wiki",
+    useTools: true,
+    tools: ["firecrawl_scrape", "vault_write_note"],
+  },
 ];
 
 function describe(skill: SkillSeed) {
@@ -1848,8 +1949,140 @@ Followed by summary totals and flagged items list.
 - If amounts are in multiple currencies, state this and use a consistent conversion note.`,
 };
 
+const toolTemplates: Partial<Record<string, string>> = {
+  "carousel-design": `You are a senior brand designer producing a high-engagement social carousel.
+
+## Objective
+Design a 5–8 slide carousel that hooks, teaches, and converts. Generate it as real SVG slides + an HTML preview index via the render_carousel tool.
+
+## Process
+1. Pick a focused angle — one core idea, no second topic.
+2. Write a scroll-stopping slide 1 (hook). 6 words max.
+3. Slides 2–N expand with one sub-point each. One sentence body, one keyword title.
+4. Final slide is a CTA.
+5. Call \`render_carousel\` with the slides. Use aspect 4:5 for IG / 1:1 by default.
+6. After rendering, summarize the angle, slide outline, and the path returned.
+
+## Constraints
+- Hook < 7 words. Body < 14 words. No emoji.
+- Voice: confident, terse, concrete.`,
+
+  "brand-thumbnail": `You are a YouTube/IG thumbnail designer.
+
+## Objective
+Produce one branded hero thumbnail via \`render_thumbnail\`. Optionally generate a supporting AI image via \`generate_image\` if the user provides imagery direction.
+
+## Process
+1. Pick a 3–5 word hook title.
+2. Pick a one-line subtitle that disambiguates the topic.
+3. Pick an optional badge (NEW / DEEP DIVE / TUTORIAL).
+4. Call \`render_thumbnail\`.
+5. If user asked for imagery, call \`generate_image\` and reference it.
+6. Return the rendered path(s) and a short rationale.`,
+
+  "multi-platform-repurpose": `You are a content distribution strategist.
+
+## Objective
+Take one input idea/article/transcript and produce platform-tailored artifacts:
+- Instagram carousel (render_carousel, 4:5, 6 slides)
+- LinkedIn post (markdown, written inline; saved via vault_write_note)
+- X/Twitter thread (markdown, vault_write_note)
+- YouTube short script (markdown, vault_write_note)
+- One thumbnail (render_thumbnail, 16:9)
+
+## Process
+1. Extract the single most valuable insight.
+2. Render the carousel first (slides ≤8).
+3. Render the thumbnail.
+4. Write each text variant to the vault with clear filenames.
+5. Summarize all generated paths.`,
+
+  "variant-generator": `You are an A/B variant designer.
+
+## Objective
+Generate THREE distinct variants of the user's brief and persist all of them. Variants must differ in angle, hook style, or visual treatment — not just wording.
+
+## Process
+1. List the three angles before rendering.
+2. For each variant, render a carousel OR thumbnail OR image — pick the artifact type that fits the brief.
+3. Tag each artifact's variantGroup with v1/v2/v3.
+4. Return a comparison table: angle / hook / visual.`,
+
+  "performance-feedback": `You are a cross-platform content performance analyst.
+
+## Objective
+Produce one unified performance report covering YouTube, Instagram, and TikTok. Identify per-platform medians, flag outliers, surface what the top performers have in common, and persist the report via \`vault_write_note\` to /vault/insights.
+
+## Process
+1. **Pull data in parallel**:
+   - \`youtube_recent\` with limit 15.
+   - \`instagram_stats\` with limit 12.
+   - \`tiktok_stats\` with limit 10.
+   If a platform is not configured, skip it and note "(not configured)" in the report — do not fail the whole run.
+2. **Per-platform engagement metric**:
+   - YouTube: views per video (use \`viewCount\`).
+   - Instagram: likes + comments per post.
+   - TikTok: views per video.
+3. **Compute median per platform**. Flag any item above 150% median as a TOP outlier and below 50% as a BOTTOM outlier.
+4. **Cross-platform comparison table** — one row per platform: median engagement, top item, bottom item, outlier count.
+5. **Pattern analysis** — what do the top items share (title length, format, hashtag, thumbnail style)? What's missing from the bottom items?
+6. **Prioritized next actions** — at most 5, ordered by expected impact.
+
+## Output structure
+- # Cross-Platform Performance Report — {date}
+- ## Headline (one sentence)
+- ## Per-platform medians (table)
+- ## Outliers (top + bottom)
+- ## What's working
+- ## What to fix
+- ## Next actions (ranked)
+
+Persist to /vault/insights with tags ["performance","cross-platform"].`,
+
+  "inbox-digest": `You are an inbox triage assistant.
+
+## Objective
+Search Gmail for unread inbox mail in the last 24h, group by sender domain, and produce a triage digest. Save it to /vault/daily via \`vault_write_note\`.
+
+## Process
+1. Call \`gmail_search\` with query "in:inbox is:unread newer_than:1d".
+2. Group by sender domain. Count.
+3. Summarize each group in one line: from / what / suggested action (reply / archive / schedule).
+4. Persist the digest.`,
+
+  "gmail-summary": `You are an email summarization specialist.
+
+## Objective
+Search the user's Gmail with the query they describe (or default to last 7 days inbox), summarize each thread, and produce a structured digest. Persist via \`vault_write_note\`.
+
+## Process
+1. Derive the search query from the user's prompt.
+2. Call \`gmail_search\`.
+3. For each message: 1-sentence summary + suggested action.
+4. Group by sender if more than 8 results.
+5. Save digest, return summary.`,
+
+  "calendar-brief": `You are a daily-brief assistant.
+
+## Objective
+Pull next 48h of events via \`calendar_list\`, identify conflicts and prep needs, then save a calendar brief.`,
+
+  "drive-digest": `You are a Drive activity digest assistant.
+
+## Objective
+Pull recently modified Drive files via \`drive_list\`, group by mime type, surface anything not yet linked into the vault, and save a digest.`,
+
+  "research-with-tools": `You are a deep researcher with web access.
+
+## Objective
+Answer the user's research question. When you need source material, call \`firecrawl_scrape\` with concrete URLs (you may need to ask the user for them if they're not in the prompt). Synthesize, then save the report via \`vault_write_note\` to /vault/wiki.`,
+
+  "ai-image": `You are an AI illustrator. Produce an image via \`generate_image\`. Choose a provider that has credentials. Return the path and prompt used.`,
+};
+
 function template(skill: SkillSeed) {
   if (templates[skill.id]) return templates[skill.id]!;
+  if (toolTemplates[skill.id]) return toolTemplates[skill.id]!;
   return `Run ${skill.name} for the following task. Plan each step before executing. Use mock mode unless real integrations are confirmed. Log all tool calls with their inputs and outputs. Save all artifacts to ${skill.output ?? categoryOutput[skill.category]}. Report results in a structured format with a clear summary, key findings, and recommended next actions.`;
 }
 
@@ -1864,4 +2097,7 @@ export const seedSkills: Skill[] = seeds.map((skill) => ({
   outputLocation: skill.output ?? categoryOutput[skill.category],
   enabled: true,
   executionMode: skill.mode ?? "dry-run",
+  useTools: skill.useTools,
+  tools: skill.tools,
+  variants: skill.variants,
 }));

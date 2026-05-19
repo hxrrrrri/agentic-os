@@ -4,6 +4,8 @@ import { listRecentFiles as listDriveRecent, searchFiles as searchDrive } from "
 import { listUpcomingEvents } from "@/lib/integrations/calendar";
 import { scrapeUrl, isFirecrawlConfigured } from "@/lib/integrations/firecrawl";
 import { fetchYoutubeRecentVideos } from "@/lib/integrations/youtube";
+import { fetchInstagramStats, fetchRecentMedia } from "@/lib/integrations/instagram";
+import { fetchTikTokStats, fetchRecentVideos as fetchTikTokRecent } from "@/lib/integrations/tiktok";
 import { callMcpTool, listMcpTools } from "@/lib/mcp/bridge";
 import { writeVaultMarkdown, resolveVaultPath } from "@/lib/vault/service";
 import { getToolDefinition } from "./registry";
@@ -267,6 +269,34 @@ export async function dispatchTool(
         } else {
           result = ok(request.name, `${videos.length} recent video(s).`, { videos });
         }
+        break;
+      }
+      case "instagram_stats": {
+        const stats = await fetchInstagramStats();
+        if (!stats) {
+          result = fail(request.name, "Instagram not configured.");
+          break;
+        }
+        const media = await fetchRecentMedia(Number(args.limit ?? 12));
+        result = ok(
+          request.name,
+          `IG: ${stats.followers} followers, ${media.length} recent posts.`,
+          { stats, media },
+        );
+        break;
+      }
+      case "tiktok_stats": {
+        const stats = await fetchTikTokStats();
+        if (!stats) {
+          result = fail(request.name, "TikTok not configured.");
+          break;
+        }
+        const videos = await fetchTikTokRecent(Number(args.limit ?? 10));
+        result = ok(
+          request.name,
+          `TikTok: ${stats.followers} followers, ${videos.length} recent videos.`,
+          { stats, videos },
+        );
         break;
       }
       case "mcp_call": {
