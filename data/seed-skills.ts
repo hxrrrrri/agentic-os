@@ -1990,11 +1990,24 @@ Take one input idea/article/transcript and produce platform-tailored artifacts:
 - YouTube short script (markdown, vault_write_note)
 - One thumbnail (render_thumbnail, 16:9)
 
+## STRICT ORDERING — DO NOT DEVIATE
+Visual artifacts MUST be rendered before any long-form text is generated. The
+SSE stream paints images progressively, so producing text first means the user
+scrolls past 1000+ tokens of copy before the carousel/thumbnail appear. This
+is a hard rule, not a preference.
+
+1. **First**: call \`render_carousel\` (slides ≤ 8). Do not write any prose before this call.
+2. **Second**: call \`render_thumbnail\`.
+3. **Only after** both visuals exist: write the LinkedIn post.
+4. Then the X/Twitter thread.
+5. Then the YouTube short script.
+6. Summarize all generated paths last.
+
 ## Process
 1. Extract the single most valuable insight.
-2. Render the carousel first (slides ≤8).
+2. Render the carousel first (slides ≤ 8). NO TEXT YET.
 3. Render the thumbnail.
-4. Write each text variant to the vault with clear filenames.
+4. Now write each text variant to the vault with clear filenames, in this order: LinkedIn → Twitter → YouTube short.
 5. Summarize all generated paths.`,
 
   "variant-generator": `You are an A/B variant designer.
