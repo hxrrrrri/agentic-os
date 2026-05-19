@@ -3,6 +3,8 @@ import { z } from "zod";
 import { getApproval, getRun, listApprovals, updateApproval, updateRun } from "@/lib/db/repositories";
 import { executeApproval } from "@/lib/approvals/executors";
 import { emitRunEvent } from "@/lib/agent/event-bus";
+import { enqueueJob, startJobWorker } from "@/lib/jobs/queue";
+import { ensureResumeJobHandler } from "@/lib/jobs/resume-runner";
 import { nowIso } from "@/lib/utils";
 import type { Run } from "@/types";
 
@@ -29,6 +31,14 @@ export async function PATCH(request: Request) {
     const result = await executeApproval({ ...approval, status: "approved" });
     if (result.ok) executed = result.result;
     else executionError = result.error;
+
+    // If the approval wrapped a tool call (dispatcher staged it), enqueue a
+    // resume job so the worker replays the call now that it's approved.
+    if (approval.payload?.kind === "tool_call") {
+      ensureResumeJobHandler();
+      startJobWorker();
+      await enqueueJob("run.resume_tool", { approvalId: approval.id }).catch(() => {});
+    }
   }
 
   // Resume the parent run when all of its approvals have been resolved.

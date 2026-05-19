@@ -17,6 +17,9 @@ export interface ApprovalRequest {
   /** Approval auto-expires at this ISO timestamp if still pending. The
    *  recovery sweep (`expireStaleApprovals`) marks it `expired`. */
   expiresAt?: string;
+  /** Structured payload captured at staging time so an approve handler can
+   *  replay the original tool call without re-deriving args from action text. */
+  payload?: Record<string, unknown>;
 }
 
 export interface AuditLog {

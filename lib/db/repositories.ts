@@ -1,7 +1,7 @@
 import { getDb, rows, saveDb } from "@/lib/db/client";
 import { agenticosConfig } from "@/agenticos.config";
 import { createId, nowIso } from "@/lib/utils";
-import type { AgentPlan, ApprovalRequest, AuditLog, Integration, MemoryItem, Routine, Run, RunStep, ToolCall } from "@/types";
+import type { AgentPlan, ApprovalRequest, AuditLog, GeneratedArtifact, Integration, MemoryItem, Routine, Run, RunStep, ToolCall } from "@/types";
 
 type RunRow = {
   id: string;
@@ -20,6 +20,7 @@ type RunRow = {
   final_output?: string;
   created_artifacts_json: string;
   error_detail?: string;
+  artifacts_json?: string;
 };
 
 function parseJson<T>(value: string | undefined | null, fallback: T): T {
@@ -59,8 +60,8 @@ function applyRuntimeIntegrationState(integration: Integration): Integration {
 export async function insertRun(run: Run, plan: AgentPlan) {
   const db = await getDb();
   db.run(
-    `INSERT INTO runs (id, title, prompt, selected_skill, category, status, started_at, ended_at, duration_ms, tokens_estimate, cost_estimate, plan_json, files_touched_json, errors_json, final_output, created_artifacts_json)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO runs (id, title, prompt, selected_skill, category, status, started_at, ended_at, duration_ms, tokens_estimate, cost_estimate, plan_json, files_touched_json, errors_json, final_output, created_artifacts_json, artifacts_json)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       run.id,
       run.title,
@@ -78,6 +79,7 @@ export async function insertRun(run: Run, plan: AgentPlan) {
       JSON.stringify(run.errors),
       run.finalOutput ?? null,
       JSON.stringify(run.createdArtifacts),
+      JSON.stringify(run.artifacts ?? []),
     ],
   );
   await saveDb();
@@ -87,7 +89,7 @@ export async function updateRun(run: Run, plan?: AgentPlan) {
   const db = await getDb();
   db.run(
     `UPDATE runs SET status = ?, ended_at = ?, duration_ms = ?, tokens_estimate = ?, cost_estimate = ?,
-       plan_json = COALESCE(?, plan_json), files_touched_json = ?, errors_json = ?, final_output = ?, created_artifacts_json = ?, error_detail = ?
+       plan_json = COALESCE(?, plan_json), files_touched_json = ?, errors_json = ?, final_output = ?, created_artifacts_json = ?, artifacts_json = ?, error_detail = ?
      WHERE id = ?`,
     [
       run.status,
@@ -100,6 +102,7 @@ export async function updateRun(run: Run, plan?: AgentPlan) {
       JSON.stringify(run.errors),
       run.finalOutput ?? null,
       JSON.stringify(run.createdArtifacts),
+      JSON.stringify(run.artifacts ?? []),
       run.errorDetail ?? null,
       run.id,
     ],
@@ -141,8 +144,8 @@ export async function insertToolCall(toolCall: ToolCall) {
 export async function insertApproval(approval: ApprovalRequest) {
   const db = await getDb();
   db.run(
-    `INSERT INTO approvals (id, run_id, action, integration, affected_resource, command_or_payload, risk_level, explanation, status, created_at, resolved_at, expires_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO approvals (id, run_id, action, integration, affected_resource, command_or_payload, risk_level, explanation, status, created_at, resolved_at, expires_at, payload_json)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       approval.id,
       approval.runId,
@@ -156,6 +159,7 @@ export async function insertApproval(approval: ApprovalRequest) {
       approval.createdAt,
       approval.resolvedAt ?? null,
       approval.expiresAt ?? null,
+      approval.payload ? JSON.stringify(approval.payload) : null,
     ],
   );
   await saveDb();
@@ -225,6 +229,7 @@ export async function listRuns(limit = 100): Promise<Run[]> {
     errorDetail: run.error_detail,
     finalOutput: run.final_output,
     createdArtifacts: parseJson<string[]>(run.created_artifacts_json, []),
+    artifacts: parseJson<GeneratedArtifact[]>(run.artifacts_json, []),
   }));
 }
 
@@ -258,6 +263,7 @@ export async function getRun(id: string): Promise<Run | undefined> {
     errorDetail: row.error_detail,
     finalOutput: row.final_output,
     createdArtifacts: parseJson<string[]>(row.created_artifacts_json, []),
+    artifacts: parseJson<GeneratedArtifact[]>(row.artifacts_json, []),
   };
 }
 
@@ -360,6 +366,7 @@ interface ApprovalRow {
   created_at: string;
   resolved_at?: string;
   expires_at?: string;
+  payload_json?: string;
 }
 
 function approvalFromRow(row: ApprovalRow): ApprovalRequest {
@@ -376,6 +383,7 @@ function approvalFromRow(row: ApprovalRow): ApprovalRequest {
     createdAt: row.created_at,
     resolvedAt: row.resolved_at,
     expiresAt: row.expires_at,
+    payload: parseJson<Record<string, unknown> | undefined>(row.payload_json, undefined),
   };
 }
 

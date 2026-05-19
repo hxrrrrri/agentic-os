@@ -3,6 +3,7 @@ import { listRoutines, touchRoutine, addAuditLog } from "@/lib/db/repositories";
 import { enqueueJob, startJobWorker } from "@/lib/jobs/queue";
 import { ensureRoutineJobHandler } from "@/lib/jobs/routine-runner";
 import { ensureGradeJobHandler } from "@/lib/jobs/grade-runner";
+import { ensureResumeJobHandler } from "@/lib/jobs/resume-runner";
 import type { Routine } from "@/types";
 
 const tasks = new Map<string, ScheduledTask>();
@@ -74,6 +75,7 @@ export async function startScheduler() {
   started = true;
   ensureRoutineJobHandler();
   ensureGradeJobHandler();
+  ensureResumeJobHandler();
   startJobWorker();
   const routines = await listRoutines();
   routines.forEach(scheduleRoutine);

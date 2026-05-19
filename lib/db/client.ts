@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import fsp from "node:fs/promises";
 import path from "node:path";
-import initSqlJs, { type Database, type SqlJsStatic } from "sql.js";
+import type { Database, SqlJsStatic } from "sql.js";
 import { agenticosConfig } from "@/agenticos.config";
 import { seedIntegrations } from "@/data/seed-integrations";
 import { seedRoutines } from "@/data/seed-routines";
@@ -13,6 +13,16 @@ let db: Database | undefined;
 let initialized = false;
 let dbFileMtimeMs = 0;
 const useNative = isNativeAvailable();
+
+type InitSqlJs = (config?: { locateFile?: (file: string) => string }) => Promise<SqlJsStatic>;
+
+function loadInitSqlJs(): InitSqlJs {
+  const runtimeRequire = eval("require") as NodeRequire;
+  const loaded = runtimeRequire("sql.js") as InitSqlJs | { default?: InitSqlJs };
+  if (typeof loaded === "function") return loaded;
+  if (loaded.default) return loaded.default;
+  throw new Error("Could not load sql.js");
+}
 
 async function getSql() {
   if (!SQL) {
@@ -26,18 +36,20 @@ async function getSql() {
     const probeFile = "sql-wasm.wasm";
     const candidates: string[] = [path.join(process.cwd(), "node_modules", "sql.js", "dist")];
 
-    // `sql.js/package.json` resolves to a real file (package.json is bundler-
-    // safe), so we can use it to locate the installed package root. The
+    // Vitest changes process.cwd() to per-test temp directories. Resolve the
+    // installed package from this module as the stable fallback.
     // `eval("require")` keeps this out of Turbopack's static graph — otherwise
-    // sql.js's external marking causes a compile-time "Module not found"
-    // warning even though the runtime path is fine.
     try {
       const runtimeRequire = eval("require") as NodeRequire;
-      const pkgPath = runtimeRequire.resolve("sql.js/package.json");
-      candidates.push(path.join(path.dirname(pkgPath), "dist"));
+      const wasmPath = runtimeRequire.resolve(["sql.js", "dist", "sql-wasm.wasm"].join("/"));
+      candidates.push(path.dirname(wasmPath));
+    } catch {}
+    try {
+      const runtimeRequire = eval("require") as NodeRequire;
+      candidates.push(path.dirname(runtimeRequire.resolve("sql.js")));
     } catch {}
 
-    let wasmDir = candidates[0];
+    let wasmDir: string | undefined;
     for (const candidate of candidates) {
       try {
         if (fs.existsSync(path.join(candidate, probeFile))) {
@@ -46,9 +58,11 @@ async function getSql() {
         }
       } catch {}
     }
-    SQL = await initSqlJs({
-      locateFile: (file: string) => path.join(wasmDir, file),
-    });
+    if (!wasmDir) {
+      throw new Error(`Could not locate ${probeFile}; checked ${candidates.join(", ")}`);
+    }
+    const initSqlJs = loadInitSqlJs();
+    SQL = await initSqlJs({ locateFile: (file: string) => path.join(wasmDir, file) });
   }
   return SQL;
 }
@@ -83,6 +97,7 @@ async function loadDbFromDisk() {
     initialized = false;
     return;
   }
+  await recoverDbFromTempExports();
   const sql = await getSql();
   if (fs.existsSync(agenticosConfig.databasePath)) {
     db = new sql.Database(fs.readFileSync(agenticosConfig.databasePath));
@@ -111,6 +126,136 @@ async function reloadDbIfChanged() {
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
 let savePending: Promise<void> | null = null;
 const SAVE_DEBOUNCE_MS = 250;
+const SAVE_RETRIES = 8;
+const RECOVERY_SCAN_LIMIT = 200;
+
+function wait(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isRetriableReplaceError(error: unknown) {
+  const code = (error as NodeJS.ErrnoException | undefined)?.code;
+  return code === "EPERM" || code === "EACCES" || code === "EBUSY" || code === "EEXIST";
+}
+
+async function replaceFileWithRetry(tmp: string, target: string) {
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt < SAVE_RETRIES; attempt += 1) {
+    try {
+      await fsp.rename(tmp, target);
+      return;
+    } catch (error) {
+      lastError = error;
+      if (!isRetriableReplaceError(error)) throw error;
+
+      // Windows can briefly lock the previous sqlite export while another
+      // route or antivirus scanner reads it. Retrying avoids marking a good
+      // model run failed because the local DB file was busy for a moment.
+      await wait(35 * 2 ** attempt);
+    }
+  }
+
+  try {
+    // Preserve the last good DB if Windows still has the target locked.
+    // copyFile overwrites when possible; if it cannot, the old target remains.
+    await fsp.copyFile(tmp, target);
+    await fsp.rm(tmp, { force: true });
+    return;
+  } catch (error) {
+    throw lastError ?? error;
+  }
+}
+
+interface DbSnapshot {
+  filePath: string;
+  mtimeMs: number;
+  size: number;
+  runCount: number;
+  score: number;
+}
+
+function tableCount(database: Database, table: string): number {
+  try {
+    return Number(database.exec(`SELECT COUNT(*) FROM ${table}`)[0]?.values[0]?.[0] ?? 0);
+  } catch {
+    return 0;
+  }
+}
+
+async function snapshotDbFile(filePath: string): Promise<DbSnapshot | null> {
+  try {
+    const stat = await fsp.stat(filePath);
+    if (!stat.isFile() || stat.size === 0) return null;
+
+    const sql = await getSql();
+    const candidate = new sql.Database(await fsp.readFile(filePath));
+    try {
+      const runCount = tableCount(candidate, "runs");
+      const score =
+        runCount * 1000 +
+        tableCount(candidate, "run_steps") * 20 +
+        tableCount(candidate, "tool_calls") * 10 +
+        tableCount(candidate, "approvals") * 10 +
+        tableCount(candidate, "memory_index") * 8 +
+        tableCount(candidate, "vault_nodes") * 4 +
+        tableCount(candidate, "usage_meter") * 3 +
+        tableCount(candidate, "jobs") * 2 +
+        tableCount(candidate, "routines") +
+        tableCount(candidate, "integrations");
+      return { filePath, mtimeMs: stat.mtimeMs, size: stat.size, runCount, score };
+    } finally {
+      candidate.close();
+    }
+  } catch {
+    return null;
+  }
+}
+
+async function recoverDbFromTempExports(): Promise<void> {
+  const target = agenticosConfig.databasePath;
+  const dir = path.dirname(target);
+  const base = path.basename(target);
+
+  let entries: string[];
+  try {
+    entries = await fsp.readdir(dir);
+  } catch {
+    return;
+  }
+
+  const active = fs.existsSync(target) ? await snapshotDbFile(target) : null;
+  if (active && active.runCount > 0) return;
+
+  const tempFiles = entries
+    .filter((name) => name.startsWith(`${base}.`) && name.endsWith(".tmp"))
+    .map((name) => path.join(dir, name))
+    .sort((a, b) => {
+      try {
+        return fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs;
+      } catch {
+        return 0;
+      }
+    })
+    .slice(0, RECOVERY_SCAN_LIMIT);
+
+  let best: DbSnapshot | null = null;
+  for (const file of tempFiles) {
+    const snapshot = await snapshotDbFile(file);
+    if (!snapshot) continue;
+    if (!best || snapshot.score > best.score || (snapshot.score === best.score && snapshot.mtimeMs > best.mtimeMs)) {
+      best = snapshot;
+    }
+  }
+
+  if (!best || best.score <= (active?.score ?? 0) || best.runCount <= (active?.runCount ?? 0)) return;
+
+  if (fs.existsSync(target)) {
+    await fsp.copyFile(target, `${target}.${Date.now()}.bak-empty`).catch(() => {});
+  }
+  await fsp.copyFile(best.filePath, target);
+  dbFileMtimeMs = await getDbFileMtime();
+}
 
 async function writeNow() {
   if (!db) return;
@@ -122,8 +267,12 @@ async function writeNow() {
   }
   await fsp.mkdir(path.dirname(agenticosConfig.databasePath), { recursive: true });
   const tmp = `${agenticosConfig.databasePath}.${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2)}.tmp`;
-  await fsp.writeFile(tmp, Buffer.from(db.export()));
-  await fsp.rename(tmp, agenticosConfig.databasePath);
+  try {
+    await fsp.writeFile(tmp, Buffer.from(db.export()));
+    await replaceFileWithRetry(tmp, agenticosConfig.databasePath);
+  } finally {
+    await fsp.rm(tmp, { force: true }).catch(() => {});
+  }
   dbFileMtimeMs = await getDbFileMtime();
 }
 
@@ -615,6 +764,24 @@ const MIGRATIONS: Migration[] = [
     up(db) {
       if (!columnExists(db, "approvals", "expires_at")) {
         db.run("ALTER TABLE approvals ADD COLUMN expires_at TEXT");
+      }
+    },
+  },
+  {
+    version: 3,
+    description: "runs.artifacts_json — structured artifact records (carousels, images, etc.)",
+    up(db) {
+      if (!columnExists(db, "runs", "artifacts_json")) {
+        db.run("ALTER TABLE runs ADD COLUMN artifacts_json TEXT NOT NULL DEFAULT '[]'");
+      }
+    },
+  },
+  {
+    version: 4,
+    description: "approvals.payload_json — captures the original tool-call args for replay after approve",
+    up(db) {
+      if (!columnExists(db, "approvals", "payload_json")) {
+        db.run("ALTER TABLE approvals ADD COLUMN payload_json TEXT");
       }
     },
   },
