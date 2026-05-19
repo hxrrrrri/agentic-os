@@ -9,6 +9,14 @@ export interface AgentPlanStep {
   requiresApproval: boolean;
 }
 
+export interface AgentPlanRouting {
+  skillId?: string;
+  confidence: number;
+  reason: string;
+  tokensUsed?: number;
+  candidates?: Array<{ id: string; score: number }>;
+}
+
 export interface AgentPlan {
   id: string;
   runId: string;
@@ -17,6 +25,8 @@ export interface AgentPlan {
   executionMode: ExecutionMode;
   steps: AgentPlanStep[];
   createdAt: string;
+  /** Auto-router decision when no manual skill was selected. */
+  routing?: AgentPlanRouting;
 }
 
 export interface Workflow {

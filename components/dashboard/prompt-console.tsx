@@ -17,52 +17,68 @@ export function PromptConsole({ skills, providers }: { skills: Skill[]; provider
   const initialSkill = skills.find((skill) => skill.id === params.get("skill"));
   const [prompt, setPrompt] = useState(initialSkill?.template ?? "");
   const [selectedSkill, setSelectedSkill] = useState<Skill | undefined>(initialSkill);
+  const [runError, setRunError] = useState<string | null>(null);
+  const [autoRoute, setAutoRoute] = useState(true);
   const [isPending, startTransition] = useTransition();
 
   function selectSkill(skill: Skill) {
     setSelectedSkill(skill);
     setPrompt(skill.template);
+    setRunError(null);
   }
 
   function run() {
+    setRunError(null);
     startTransition(async () => {
-      const defaultProvider = providers.find((provider) => provider.enabled) ?? providers[0];
-      const providerId = window.localStorage.getItem("agenticos.activeProvider") || defaultProvider?.id;
-      const storedModels = window.localStorage.getItem("agenticos.providerModels");
-      const storedThinking = window.localStorage.getItem("agenticos.providerThinking");
-      const storedEffort = window.localStorage.getItem("agenticos.providerEffort");
+      try {
+        const defaultProvider = providers.find((provider) => provider.enabled) ?? providers[0];
+        const storedProviderId = window.localStorage.getItem("agenticos.activeProvider");
+        const activeProvider = providers.find((item) => item.id === storedProviderId) ?? defaultProvider;
+        const storedModels = window.localStorage.getItem("agenticos.providerModels");
+        const storedThinking = window.localStorage.getItem("agenticos.providerThinking");
+        const storedEffort = window.localStorage.getItem("agenticos.providerEffort");
 
-      const parseRecord = <T,>(raw: string | null): Record<string, T> => {
-        if (!raw) return {};
-        try {
-          return JSON.parse(raw) as Record<string, T>;
-        } catch {
-          return {};
-        }
-      };
+        const parseRecord = <T,>(raw: string | null): Record<string, T> => {
+          if (!raw) return {};
+          try {
+            return JSON.parse(raw) as Record<string, T>;
+          } catch {
+            return {};
+          }
+        };
 
-      const selectedModels = parseRecord<string>(storedModels);
-      const thinkingMap = parseRecord<ThinkingLevel>(storedThinking);
-      const effortMap = parseRecord<ReasoningEffort>(storedEffort);
-      const provider = providers.find((item) => item.id === providerId);
-      const model = providerId ? selectedModels[providerId] ?? (provider ? getInitialModel(provider) : undefined) : undefined;
+        const selectedModels = parseRecord<string>(storedModels);
+        const thinkingMap = parseRecord<ThinkingLevel>(storedThinking);
+        const effortMap = parseRecord<ReasoningEffort>(storedEffort);
+        const model = activeProvider ? selectedModels[activeProvider.id] ?? getInitialModel(activeProvider) : undefined;
 
-      const modelProfile: SelectedModelProfile | undefined =
-        providerId && model
-          ? {
-              providerId,
-              model,
-              thinking: thinkingMap[providerId],
-              reasoningEffort: effortMap[providerId],
-            }
-          : undefined;
-      const response = await fetch("/api/runs", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt, skillId: selectedSkill?.id, dryRun: true, modelProfile }),
-      });
-      const data = (await response.json()) as { run?: { id: string } };
-      if (data.run?.id) router.push(`/runs/${data.run.id}`);
+        const modelProfile: SelectedModelProfile | undefined =
+          activeProvider && model
+            ? {
+                providerId: activeProvider.id,
+                model,
+                thinking: thinkingMap[activeProvider.id],
+                reasoningEffort: effortMap[activeProvider.id],
+              }
+            : undefined;
+        const response = await fetch("/api/runs", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            prompt,
+            skillId: selectedSkill?.id,
+            dryRun: true,
+            modelProfile,
+            autoRoute: !selectedSkill && autoRoute,
+          }),
+        });
+        const data = (await response.json().catch(() => ({}))) as { run?: { id: string }; error?: string };
+        if (!response.ok) throw new Error(data.error ?? `Run request failed (${response.status})`);
+        if (!data.run?.id) throw new Error("Run was created without an id");
+        router.push(`/runs/${data.run.id}`);
+      } catch (error) {
+        setRunError(error instanceof Error ? error.message : "Run failed to start");
+      }
     });
   }
 
@@ -89,14 +105,31 @@ export function PromptConsole({ skills, providers }: { skills: Skill[]; provider
           />
           <div className="mt-3 grid grid-cols-[1fr_180px] gap-3">
             <Button onClick={run} disabled={!prompt.trim() || isPending} type="button" className="border-[#30342c] bg-[#10120f]">
-              {isPending ? "Running" : "Run"} <ArrowRight size={13} />
+              {isPending ? "Running..." : "Run"} <ArrowRight size={13} />
             </Button>
-            <Button onClick={() => setPrompt("")} type="button">
+            <Button onClick={() => { setPrompt(""); setRunError(null); }} type="button">
               Clear
             </Button>
           </div>
-          <div className="mt-2 text-[0.58rem] uppercase tracking-[0.14em] text-[#6f6a61]">
-            {selectedSkill ? `${selectedSkill.name} / ${selectedSkill.executionMode}` : "router standing by"}
+          {runError ? (
+            <div className="mt-2 border border-[#5a2424] bg-[#100808] px-2 py-1.5 text-[0.64rem] leading-5 text-[#e0a8a8]">
+              {runError}
+            </div>
+          ) : null}
+          <div className="mt-2 flex items-center justify-between text-[0.58rem] uppercase tracking-[0.14em] text-[#6f6a61]">
+            <span>
+              {selectedSkill ? `${selectedSkill.name} / ${selectedSkill.executionMode}` : autoRoute ? "auto-router on" : "router standing by"}
+            </span>
+            <label className="flex cursor-pointer items-center gap-1.5 normal-case tracking-normal text-[#8b857b]">
+              <input
+                type="checkbox"
+                checked={autoRoute}
+                onChange={(e) => setAutoRoute(e.target.checked)}
+                disabled={Boolean(selectedSkill)}
+                className="h-3 w-3 accent-[#e86f3a]"
+              />
+              <span>Auto-pick skill</span>
+            </label>
           </div>
         </div>
       </div>

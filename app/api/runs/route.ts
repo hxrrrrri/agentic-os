@@ -13,6 +13,7 @@ const RunRequestSchema = z.object({
   skillId: z.string().optional(),
   dryRun: z.boolean().optional(),
   useSwarm: z.boolean().optional(),
+  autoRoute: z.boolean().optional(),
   modelProfile: z.object({
     providerId: z.string().min(1),
     model: z.string().min(1),

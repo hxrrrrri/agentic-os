@@ -1,5 +1,6 @@
-import type { AgentPlan, AgentPlanStep, ApprovalRequest, PermissionLevel, Run, RunStep, SelectedModelProfile, Skill, ToolCall } from "@/types";
+import type { AgentPlan, AgentPlanRouting, AgentPlanStep, ApprovalRequest, GeneratedArtifact, PermissionLevel, Run, RunStep, SelectedModelProfile, Skill, ToolCall } from "@/types";
 import { getSkill, classifyPrompt } from "@/lib/skills/registry";
+import { routeSkill } from "@/lib/skills/router";
 import { generateWithModel } from "@/lib/agent/llm";
 import { getProvider } from "@/lib/agent/providers";
 import { loadProjectModelContext } from "@/lib/agent/project-context";
@@ -7,6 +8,7 @@ import { createId, nowIso, titleFromPrompt } from "@/lib/utils";
 import { detectRisk, requiresApproval } from "@/lib/permissions/policy";
 import { computeCost } from "@/lib/billing/pricing";
 import { runSwarm } from "@/lib/agent/swarm";
+import { runToolLoop } from "@/lib/agent/tool-loop";
 import {
   addAuditLog,
   insertApproval,
@@ -32,6 +34,8 @@ export interface RunRequest {
   dryRun?: boolean;
   modelProfile?: SelectedModelProfile;
   useSwarm?: boolean;
+  /** When no skillId is provided, auto-route to the best-fit skill. Defaults to true. */
+  autoRoute?: boolean;
 }
 
 function modeToPermission(mode: Skill["executionMode"]): PermissionLevel {
@@ -187,6 +191,7 @@ interface GenerateOutcome {
   cost: number;
   providerId?: string;
   model?: string;
+  artifacts?: GeneratedArtifact[];
 }
 
 async function generateFinalOutput(
@@ -198,12 +203,15 @@ async function generateFinalOutput(
   vaultContext?: string,
   vaultFileCount?: number,
   onOutputDelta?: (delta: string) => void,
+  toolLoopContext?: { runId: string; permissionLevel: PermissionLevel; dryRun: boolean },
 ): Promise<GenerateOutcome> {
   const category = skill?.category ?? classifyPrompt(prompt);
   const projectContext = await loadProjectModelContext({ category, prompt });
 
   if (!modelProfile) {
-    return { output: fallbackSummary(skill, prompt, memoryCount), inputTokens: 0, outputTokens: 0, cost: 0 };
+    const fallback = fallbackSummary(skill, prompt, memoryCount);
+    onOutputDelta?.(fallback);
+    return { output: fallback, inputTokens: 0, outputTokens: 0, cost: 0 };
   }
 
   // Cost governor: only reroute skills that explicitly opt into a cost tier.
@@ -217,6 +225,10 @@ async function generateFinalOutput(
   // key so that two runs with identical user prompt but different settings
   // don't collide. When streaming, replay the cached body through the delta
   // callback so the UI still gets progressive output.
+  //
+  // Tool-use skills are NOT cached — the cached body would skip dispatch and
+  // re-running needs real tool execution every time. We compute the key for
+  // non-tool-use skills only and use it both for read + write.
   const cacheExtras = JSON.stringify({
     skill: skill?.id ?? null,
     thinking: modelProfile.thinking ?? null,
@@ -224,19 +236,37 @@ async function generateFinalOutput(
     useSwarm: useSwarm,
     ctxFiles: vaultFileCount ?? 0,
   });
-  const cacheKey = hashKey(modelProfile.providerId, modelProfile.model, prompt, cacheExtras);
-  const cached = await getCached(cacheKey);
-  if (cached) {
-    await recordCacheHit(cacheKey).catch(() => {});
-    if (onOutputDelta) {
-      // Replay in ~512-char chunks so the live-output stream renders progressively.
-      const chunkSize = 512;
-      for (let i = 0; i < cached.response.length; i += chunkSize) {
-        onOutputDelta(cached.response.slice(i, i + chunkSize));
+  const cacheKey = skill?.useTools
+    ? null
+    : hashKey(modelProfile.providerId, modelProfile.model, prompt, cacheExtras);
+  if (cacheKey) {
+    const cached = await getCached(cacheKey);
+    if (cached) {
+      await recordCacheHit(cacheKey).catch(() => {});
+      if (onOutputDelta) {
+        const chunkSize = 512;
+        for (let i = 0; i < cached.response.length; i += chunkSize) {
+          onOutputDelta(cached.response.slice(i, i + chunkSize));
+        }
       }
+      return {
+        output: cached.response,
+        inputTokens: 0,
+        outputTokens: 0,
+        cost: 0,
+        providerId: modelProfile.providerId,
+        model: modelProfile.model,
+      };
     }
+  }
+
+  const provider = getProvider(modelProfile.providerId);
+
+  if (!provider) {
+    const fallback = fallbackSummary(skill, prompt, memoryCount, modelProfile, "Unknown provider; used local mock fallback.");
+    onOutputDelta?.(fallback);
     return {
-      output: cached.response,
+      output: fallback,
       inputTokens: 0,
       outputTokens: 0,
       cost: 0,
@@ -245,17 +275,52 @@ async function generateFinalOutput(
     };
   }
 
-  const provider = getProvider(modelProfile.providerId);
-
-  if (!provider) {
-    return {
-      output: fallbackSummary(skill, prompt, memoryCount, modelProfile, "Unknown provider; used local mock fallback."),
-      inputTokens: 0,
-      outputTokens: 0,
-      cost: 0,
-      providerId: modelProfile.providerId,
-      model: modelProfile.model,
-    };
+  if (skill?.useTools && toolLoopContext) {
+    try {
+      const loop = await runToolLoop({
+        provider,
+        modelProfile,
+        prompt,
+        skill,
+        permissionLevel: toolLoopContext.permissionLevel,
+        dryRun: toolLoopContext.dryRun,
+        runId: toolLoopContext.runId,
+        memoryCount,
+        projectContext,
+        vaultContext,
+        vaultFileCount,
+        onOutputDelta,
+      });
+      const body = [
+        `# ${skill?.name ?? "Tool-Use Run"}`,
+        "",
+        `> **Tool-use** · provider ${provider.id} · model ${modelProfile.model} · iterations ${loop.iterations}`,
+        "",
+        loop.finalOutput,
+      ].join("\n");
+      const cost = computeCost(modelProfile.model, loop.inputTokens, loop.outputTokens);
+      return {
+        output: body,
+        inputTokens: loop.inputTokens,
+        outputTokens: loop.outputTokens,
+        cost,
+        providerId: modelProfile.providerId,
+        model: modelProfile.model,
+        artifacts: loop.artifacts,
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Tool loop failed";
+      const fallback = fallbackSummary(skill, prompt, memoryCount, modelProfile, `${message}; tool loop failed.`);
+      onOutputDelta?.(fallback);
+      return {
+        output: fallback,
+        inputTokens: 0,
+        outputTokens: 0,
+        cost: 0,
+        providerId: modelProfile.providerId,
+        model: modelProfile.model,
+      };
+    }
   }
 
   if (useSwarm) {
@@ -308,6 +373,18 @@ async function generateFinalOutput(
     void outputPrefix;
     onOutputDelta?.(safeOutputPrefix);
 
+    // Track whether the provider actually streamed any tokens. Most cloud
+    // providers (Anthropic, OpenAI, Gemini, etc.) return the full body in one
+    // shot — so without this, the live-output stream stays empty until the
+    // run finalises and the page refreshes.
+    let providerStreamed = false;
+    const wrappedOnToken = onOutputDelta
+      ? (token: string) => {
+          if (token) providerStreamed = true;
+          onOutputDelta(token);
+        }
+      : undefined;
+
     const generated = await generateWithModel({
       provider,
       model: modelProfile.model,
@@ -319,8 +396,17 @@ async function generateFinalOutput(
       vaultFileCount,
       thinking: modelProfile.thinking,
       reasoningEffort: modelProfile.reasoningEffort,
-      onToken: onOutputDelta,
+      onToken: wrappedOnToken,
     });
+
+    if (!providerStreamed && onOutputDelta && generated.content) {
+      // Chunk the body so the SSE batcher can pace render and the UI shows
+      // progress instead of a single huge paint.
+      const chunkSize = 256;
+      for (let i = 0; i < generated.content.length; i += chunkSize) {
+        onOutputDelta(generated.content.slice(i, i + chunkSize));
+      }
+    }
 
     const body = [
       `# ${skill?.name ?? "Agentic Workflow"}`,
@@ -335,15 +421,18 @@ async function generateFinalOutput(
 
     const cost = computeCost(modelProfile.model, generated.usage.inputTokens, generated.usage.outputTokens);
     // Cache every successful response (streamed or not) — replay path above
-    // turns the next streaming hit into a near-instant render.
-    void putCached(cacheKey, {
-      provider: modelProfile.providerId,
-      model: modelProfile.model,
-      response: finalBody,
-      inputTokens: generated.usage.inputTokens,
-      outputTokens: generated.usage.outputTokens,
-      costUsd: cost,
-    }).catch(() => {});
+    // turns the next streaming hit into a near-instant render. Tool-use skills
+    // bypass the cache entirely; cacheKey is null in that case.
+    if (cacheKey) {
+      void putCached(cacheKey, {
+        provider: modelProfile.providerId,
+        model: modelProfile.model,
+        response: finalBody,
+        inputTokens: generated.usage.inputTokens,
+        outputTokens: generated.usage.outputTokens,
+        costUsd: cost,
+      }).catch(() => {});
+    }
 
     return {
       output: finalBody,
@@ -355,8 +444,10 @@ async function generateFinalOutput(
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Model call failed";
+    const fallback = fallbackSummary(skill, prompt, memoryCount, modelProfile, `${message}; used local mock fallback.`);
+    onOutputDelta?.(fallback);
     return {
-      output: fallbackSummary(skill, prompt, memoryCount, modelProfile, `${message}; used local mock fallback.`),
+      output: fallback,
       inputTokens: 0,
       outputTokens: 0,
       cost: 0,
@@ -370,11 +461,30 @@ async function buildAndPersistRun(request: RunRequest): Promise<{ run: Run; plan
   const prompt = request.prompt.trim();
   if (!prompt) throw new Error("Prompt is required");
 
-  const skill = getSkill(request.skillId);
+  let skill = getSkill(request.skillId);
+  let routing: AgentPlanRouting | undefined;
+  const wantAutoRoute = request.autoRoute !== false;
+  if (!skill && wantAutoRoute) {
+    const decision = await routeSkill(prompt, { modelProfile: request.modelProfile }).catch(() => undefined);
+    if (decision) {
+      routing = {
+        skillId: decision.skill?.id,
+        confidence: decision.confidence,
+        reason: decision.reason,
+        tokensUsed: decision.tokensUsed,
+        candidates: decision.candidates,
+      };
+      if (decision.skill) {
+        skill = decision.skill;
+        request.skillId = decision.skill.id;
+      }
+    }
+  }
   const runId = createId("run");
   const startedAt = nowIso();
   const useSwarm = request.useSwarm ?? skill?.id === "swarm-cascade";
   const plan = buildPlan(runId, prompt, skill, useSwarm);
+  if (routing) plan.routing = routing;
   const run: Run = {
     id: runId,
     title: skill?.name ? `${skill.name}: ${titleFromPrompt(prompt)}` : titleFromPrompt(prompt),
@@ -584,6 +694,11 @@ async function runWorkflowSteps(run: Run, plan: AgentPlan, request: RunRequest):
     vaultSnapshot?.rendered,
     vaultSnapshot?.entries.length ?? 0,
     queueOutputDelta,
+    {
+      runId: run.id,
+      permissionLevel: modeToPermission(skill?.executionMode ?? "dry-run"),
+      dryRun: request.dryRun ?? true,
+    },
   );
   flushOutput();
   const outputFolder = skill?.outputLocation ?? "/vault/runs";
@@ -600,10 +715,19 @@ async function runWorkflowSteps(run: Run, plan: AgentPlan, request: RunRequest):
     },
     relatedLinks: memoryItems.slice(0, 5).map((m) => m.title),
   });
-  await indexGeneratedArtifact(artifact, `Generated result for ${run.title}`, [plan.category, skill?.id ?? "unclassified"].filter(Boolean));
+  await indexGeneratedArtifact(artifact, `Generated result for ${run.title}`, [plan.category, skill?.id ?? "unclassified"].filter(Boolean)).catch((error) => {
+    const message = error instanceof Error ? error.message : "memory indexing failed";
+    emitRunEvent({ runId: run.id, type: "run.log", payload: { level: "warn", message: `Memory indexing skipped: ${message}` } });
+  });
 
   run.filesTouched.push(artifact);
   run.createdArtifacts.push(artifact);
+  if (outcome.artifacts?.length) {
+    run.artifacts = [...(run.artifacts ?? []), ...outcome.artifacts];
+    for (const generated of outcome.artifacts) {
+      if (!run.createdArtifacts.includes(generated.path)) run.createdArtifacts.push(generated.path);
+    }
+  }
   run.finalOutput = outcome.output;
   run.tokensEstimate = outcome.inputTokens + outcome.outputTokens;
   run.costEstimate = outcome.cost;
@@ -627,6 +751,9 @@ async function runWorkflowSteps(run: Run, plan: AgentPlan, request: RunRequest):
     inputTokens: outcome.inputTokens,
     outputTokens: outcome.outputTokens,
     costUsd: outcome.cost,
+  }).catch((error) => {
+    const message = error instanceof Error ? error.message : "usage metering failed";
+    emitRunEvent({ runId: run.id, type: "run.log", payload: { level: "warn", message: `Usage metering skipped: ${message}` } });
   });
   // F10: queue auto-grading for completed runs that produced model output.
   if (run.status === "completed" && outcome.outputTokens > 0) {
@@ -654,6 +781,9 @@ async function runWorkflowSteps(run: Run, plan: AgentPlan, request: RunRequest):
     integration: skill?.requiredIntegrations[0] ?? "local",
     riskLevel: skill?.riskLevel ?? "low",
     result: "completed",
+  }).catch((error) => {
+    const message = error instanceof Error ? error.message : "audit log failed";
+    emitRunEvent({ runId: run.id, type: "run.log", payload: { level: "warn", message: `Audit log skipped: ${message}` } });
   });
 }
 
